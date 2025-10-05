@@ -26,9 +26,10 @@ class RoutingRepositoryImpl @Inject constructor(
         val originStr = "${origin.latitude},${origin.longitude}"
         val destinationStr = "${destination.latitude},${destination.longitude}"
         val waypointsStr = if (waypoints.isNotEmpty()) {
-            waypoints
+            // Add "optimize:true|" prefix to enable Google's waypoint optimization
+            "optimize:true|" + waypoints
                 .sortedBy { it.order }
-                .joinToString("|") { it.toDirectionsApiFormat() }
+                .joinToString("|") { "${it.location.latitude},${it.location.longitude}" }
         } else null
 
         val response = directionsApi.getDirections(

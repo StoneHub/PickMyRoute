@@ -134,7 +134,13 @@ fun WaypointTimeline(
                                     val reordered = sortedWaypoints.toMutableList()
                                     val item = reordered.removeAt(draggedIndex!!)
                                     reordered.add(newIndex, item)
-                                    onReorderWaypoints?.invoke(reordered)
+
+                                    // Update order numbers
+                                    val finalList = reordered.mapIndexed { idx, wp ->
+                                        wp.copy(order = idx + 1)
+                                    }
+
+                                    onReorderWaypoints?.invoke(finalList)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 }
 

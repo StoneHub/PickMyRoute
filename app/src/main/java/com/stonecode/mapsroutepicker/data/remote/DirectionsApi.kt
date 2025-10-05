@@ -23,6 +23,7 @@ interface DirectionsApi {
         @Query("destination") destination: String,
         @Query("waypoints") waypoints: String? = null,
         @Query("mode") mode: String = "driving",
+        @Query("optimize") optimize: String = "true",
         @Query("key") apiKey: String
     ): DirectionsResponse
 }

@@ -208,14 +208,14 @@ class MapViewModel @Inject constructor(
     }
 
     private fun resetCompass(location: LatLng) {
-        Log.d("MapsRoutePicker", "🧭 Resetting compass to north and centering on location: $location")
-        
-        // Reset bearing to 0 (north) and tilt to 0 (flat), zoom to 16
+        Log.d("MapsRoutePicker", "🧭 Resetting compass to north at current position: $location")
+
+        // Reset bearing to 0 (north) and tilt to 0 (flat), keep current zoom and position
         val cameraPosition = com.google.android.gms.maps.model.CameraPosition.Builder()
-            .target(location)
+            .target(location) // Keep current camera target (wherever user is looking)
             .zoom(16f)
-            .bearing(0f)
-            .tilt(0f)
+            .bearing(0f) // Reset to north
+            .tilt(0f) // Flatten
             .build()
         
         val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(cameraPosition)
@@ -223,7 +223,7 @@ class MapViewModel @Inject constructor(
         
         // Clear the target after animation completes
         viewModelScope.launch {
-            kotlinx.coroutines.delay(1000) // Wait for 800ms animation + buffer
+            kotlinx.coroutines.delay(1000)
             _state.update { it.copy(cameraAnimationTarget = null) }
         }
     }

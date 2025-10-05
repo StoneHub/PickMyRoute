@@ -176,9 +176,8 @@ private fun MapContent(
                     }
                 },
                 onCompassClick = {
-                    state.currentLocation?.let { location ->
-                        viewModel.onEvent(MapEvent.ResetCompass(location))
-                    }
+                    // Reset compass - just reset bearing/tilt, don't move camera
+                    viewModel.onEvent(MapEvent.ResetCompass(cameraState.position.target))
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
