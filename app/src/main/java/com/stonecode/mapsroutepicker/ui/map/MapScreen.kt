@@ -139,9 +139,6 @@ private fun MapContent(
                 onRemoveWaypoint = { waypointId ->
                     viewModel.onEvent(MapEvent.RemoveWaypoint(waypointId))
                 },
-                onReorderWaypoints = { reorderedWaypoints ->
-                    viewModel.onEvent(MapEvent.ReorderWaypoints(reorderedWaypoints))
-                },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
@@ -149,19 +146,32 @@ private fun MapContent(
                     .padding(
                         start = 16.dp,
                         end = 16.dp,
-                        top = if (state.route != null) 112.dp else 16.dp // Added more spacing from route card
+                        top = if (state.route != null) 112.dp else 16.dp
                     )
             )
         }
 
-        // Initial hint
+        // Initial hint (purple tip) - below waypoint widget if exists
         if (state.error == null && showInitialHint && state.destination == null && state.waypoints.isEmpty()) {
             DismissibleInitialHint(
                 onDismiss = { showInitialHint = false },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
-                    .padding(16.dp)
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = if (state.waypoints.isNotEmpty()) {
+                            // Below waypoint widget
+                            if (state.route != null) 200.dp else 100.dp
+                        } else if (state.route != null) {
+                            // Below route card
+                            96.dp
+                        } else {
+                            // At top
+                            16.dp
+                        }
+                    )
                     .fillMaxWidth()
             )
         }
