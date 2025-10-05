@@ -23,8 +23,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonecode.mapsroutepicker.domain.model.PlacePrediction
+import com.stonecode.mapsroutepicker.ui.theme.MapsRoutePickerTheme
 
 /**
  * Google Maps-style search bar with autocomplete suggestions
@@ -227,3 +229,127 @@ private fun SearchResultItem(
     }
 }
 
+// Preview functions
+@Preview(name = "Search Bar - Empty", showBackground = true)
+@Composable
+private fun PlaceSearchBarPreviewEmpty() {
+    MapsRoutePickerTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            PlaceSearchBar(
+                searchQuery = "",
+                predictions = emptyList(),
+                isSearching = false,
+                isExpanded = false,
+                onQueryChange = {},
+                onResultSelected = {},
+                onExpandChange = {},
+                onClearSearch = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "Search Bar - Typing", showBackground = true)
+@Composable
+private fun PlaceSearchBarPreviewTyping() {
+    MapsRoutePickerTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            PlaceSearchBar(
+                searchQuery = "Starb",
+                predictions = emptyList(),
+                isSearching = true,
+                isExpanded = true,
+                onQueryChange = {},
+                onResultSelected = {},
+                onExpandChange = {},
+                onClearSearch = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "Search Bar - With Results", showBackground = true)
+@Composable
+private fun PlaceSearchBarPreviewWithResults() {
+    MapsRoutePickerTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            PlaceSearchBar(
+                searchQuery = "Starbucks",
+                predictions = listOf(
+                    PlacePrediction(
+                        placeId = "1",
+                        mainText = "Starbucks",
+                        secondaryText = "123 Main St, San Francisco, CA",
+                        fullText = "Starbucks, 123 Main St, San Francisco, CA"
+                    ),
+                    PlacePrediction(
+                        placeId = "2",
+                        mainText = "Starbucks Coffee",
+                        secondaryText = "456 Market St, San Francisco, CA",
+                        fullText = "Starbucks Coffee, 456 Market St, San Francisco, CA"
+                    ),
+                    PlacePrediction(
+                        placeId = "3",
+                        mainText = "Starbucks Reserve",
+                        secondaryText = "789 Mission St, San Francisco, CA",
+                        fullText = "Starbucks Reserve, 789 Mission St, San Francisco, CA"
+                    )
+                ),
+                isSearching = false,
+                isExpanded = true,
+                onQueryChange = {},
+                onResultSelected = {},
+                onExpandChange = {},
+                onClearSearch = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "Search Bar - Dark Mode", showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun PlaceSearchBarPreviewDark() {
+    MapsRoutePickerTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            PlaceSearchBar(
+                searchQuery = "Golden Gate Bridge",
+                predictions = listOf(
+                    PlacePrediction(
+                        placeId = "1",
+                        mainText = "Golden Gate Bridge",
+                        secondaryText = "San Francisco, CA 94129",
+                        fullText = "Golden Gate Bridge, San Francisco, CA 94129"
+                    ),
+                    PlacePrediction(
+                        placeId = "2",
+                        mainText = "Golden Gate Park",
+                        secondaryText = "San Francisco, CA",
+                        fullText = "Golden Gate Park, San Francisco, CA"
+                    )
+                ),
+                isSearching = false,
+                isExpanded = true,
+                onQueryChange = {},
+                onResultSelected = {},
+                onExpandChange = {},
+                onClearSearch = {}
+            )
+        }
+    }
+}

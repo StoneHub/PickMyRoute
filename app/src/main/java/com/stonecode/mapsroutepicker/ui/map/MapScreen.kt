@@ -161,42 +161,46 @@ private fun MapContent(
             }
         )
 
-        // Search bar at the very top
-        PlaceSearchBar(
-            searchQuery = state.searchQuery,
-            predictions = state.searchPredictions,
-            isSearching = state.isSearching,
-            isExpanded = state.isSearchBarExpanded,
-            onQueryChange = { query ->
-                viewModel.onEvent(MapEvent.SearchQueryChanged(query))
-                // Expand when user starts typing
-                if (query.isNotEmpty() && !state.isSearchBarExpanded) {
-                    viewModel.onEvent(MapEvent.ExpandSearchBar)
-                }
-            },
-            onResultSelected = { placeId ->
-                viewModel.onEvent(MapEvent.SearchResultSelected(placeId))
-            },
-            onExpandChange = { expanded ->
-                if (expanded) {
-                    viewModel.onEvent(MapEvent.ExpandSearchBar)
-                } else {
-                    viewModel.onEvent(MapEvent.CollapseSearchBar)
-                }
-            },
-            onClearSearch = {
-                viewModel.onEvent(MapEvent.ClearSearch)
-            },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-                .fillMaxWidth()
-        )
+        // Search bar - ONLY show when no destination is set
+        if (state.destination == null) {
+            PlaceSearchBar(
+                searchQuery = state.searchQuery,
+                predictions = state.searchPredictions,
+                isSearching = state.isSearching,
+                isExpanded = state.isSearchBarExpanded,
+                onQueryChange = { query ->
+                    viewModel.onEvent(MapEvent.SearchQueryChanged(query))
+                    // Expand when user starts typing
+                    if (query.isNotEmpty() && !state.isSearchBarExpanded) {
+                        viewModel.onEvent(MapEvent.ExpandSearchBar)
+                    }
+                },
+                onResultSelected = { placeId ->
+                    viewModel.onEvent(MapEvent.SearchResultSelected(placeId))
+                },
+                onExpandChange = { expanded ->
+                    if (expanded) {
+                        viewModel.onEvent(MapEvent.ExpandSearchBar)
+                    } else {
+                        viewModel.onEvent(MapEvent.CollapseSearchBar)
+                    }
+                },
+                onClearSearch = {
+                    viewModel.onEvent(MapEvent.ClearSearch)
+                },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+                    .fillMaxWidth()
+            )
+        }
 
-        // Route info card - below search bar
-        if (state.error == null && !state.isSearchBarExpanded) {
+        // Route info card - position based on whether search is visible
+        if (state.error == null) {
             state.route?.let { route ->
+                val topPadding = if (state.destination == null) 88.dp else 16.dp
+
                 SwipeableRouteInfoCard(
                     route = route,
                     onClose = {
@@ -205,17 +209,19 @@ private fun MapContent(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .statusBarsPadding()
-                        .padding(start = 16.dp, top = 88.dp, end = 16.dp)
+                        .padding(start = 16.dp, top = topPadding, end = 16.dp)
                         .fillMaxWidth()
                 )
             }
         }
 
-        // Waypoint timeline - below route card or search bar
-        if (state.waypoints.isNotEmpty() && !state.isSearchBarExpanded) {
+        // Waypoint timeline - adjust position based on what's above it
+        if (state.waypoints.isNotEmpty()) {
             val topPadding = when {
-                state.route != null -> 184.dp  // Below route card
-                else -> 88.dp                   // Below search bar
+                state.destination == null && state.route != null -> 200.dp  // Below search + route card
+                state.destination == null -> 88.dp                          // Below search bar only
+                state.route != null -> 140.dp                               // Below route card only (no search) - increased spacing
+                else -> 16.dp                                               // Just top padding
             }
 
             WaypointTimeline(
