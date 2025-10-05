@@ -1,11 +1,15 @@
 package com.stonecode.mapsroutepicker.ui.map
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -26,6 +30,13 @@ fun MapScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
+    // Debug: Log API key at runtime
+    LaunchedEffect(Unit) {
+        val apiKey = com.stonecode.mapsroutepicker.BuildConfig.MAPS_API_KEY
+        Log.d("MapsRoutePicker", "🔑 API Key in app: ${apiKey.take(10)}...")
+        Log.d("MapsRoutePicker", "📍 Current location: ${state.currentLocation}")
+    }
+
     LocationPermissionHandler(
         onPermissionGranted = {
             viewModel.onEvent(MapEvent.RequestLocationPermission)
@@ -40,8 +51,10 @@ fun MapScreen(
                 onRequestPermission = { permissionState.launchMultiplePermissionRequest() }
             )
         } else {
-            // Show main map content
-            MapContent(state = state, viewModel = viewModel)
+            // Show main map content with system bar padding
+            Box(modifier = Modifier.fillMaxSize()) {
+                MapContent(state = state, viewModel = viewModel)
+            }
         }
     }
 }
@@ -89,20 +102,30 @@ private fun MapContent(
             }
         )
 
-        // Top controls and waypoint timeline
+        // Top controls and waypoint timeline - WITH SYSTEM BAR PADDING
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
+                .statusBarsPadding()  // Push below status bar
                 .padding(16.dp)
         ) {
-            // Destination input button
-            if (!state.showDestinationInput) {
+            // Destination button - only show when no destination OR when explicitly toggled
+            if (state.destination == null) {
                 Button(
-                    onClick = { viewModel.onEvent(MapEvent.ToggleDestinationInput) },
+                    onClick = { viewModel.onEvent(MapEvent.MapTapped(state.currentLocation ?: LatLng(0.0, 0.0))) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false // Disabled - user should tap map instead
+                ) {
+                    Text("Tap map to set destination")
+                }
+            } else {
+                // Show "Change Destination" button when destination exists
+                OutlinedButton(
+                    onClick = { viewModel.onEvent(MapEvent.ClearRoute) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (state.destination == null) "Set Destination" else "Change Destination")
+                    Text("Clear Route & Start Over")
                 }
             }
 
@@ -118,33 +141,47 @@ private fun MapContent(
             }
         }
 
-        // Loading indicator
-        if (state.isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center)
+        // User guidance hints - floating at center-top - WITH SYSTEM BAR PADDING
+        if (state.error == null) {
+            UserGuidanceHint(
+                state = state,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()  // Push below status bar
+                    .padding(top = 80.dp)
             )
         }
 
-        // Error message
-        state.error?.let { error ->
-            Snackbar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp)
-            ) {
-                Text(error)
-            }
+        // Loading indicator with message
+        if (state.isLoading) {
+            LoadingOverlay()
         }
 
-        // Route info card (bottom)
-        state.route?.let { route ->
-            RouteInfoCard(
-                route = route,
+        // Error message - improved dismissible card - WITH NAVIGATION BAR PADDING
+        state.error?.let { error ->
+            ErrorCard(
+                error = error,
+                onDismiss = { viewModel.onEvent(MapEvent.DismissError) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()  // Push above navigation bar
                     .padding(16.dp)
                     .fillMaxWidth()
             )
+        }
+
+        // Route info card (bottom) - only show when no error - WITH NAVIGATION BAR PADDING
+        if (state.error == null) {
+            state.route?.let { route ->
+                RouteInfoCard(
+                    route = route,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()  // Push above navigation bar
+                        .padding(16.dp)
+                        .fillMaxWidth()
+                )
+            }
         }
     }
 }
@@ -163,6 +200,11 @@ private fun GoogleMapView(
         )
     }
 
+    // Debug: Log when map is being composed
+    LaunchedEffect(Unit) {
+        Log.d("MapsRoutePicker", "🗺️ GoogleMap composable being rendered")
+    }
+
     GoogleMap(
         modifier = Modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
@@ -175,7 +217,11 @@ private fun GoogleMapView(
             compassEnabled = true
         ),
         onMapClick = { location ->
+            Log.d("MapsRoutePicker", "🎯 Map tapped at: $location")
             onMapTapped(location)
+        },
+        onMapLoaded = {
+            Log.d("MapsRoutePicker", "✅ Map loaded successfully!")
         }
     ) {
         // Destination marker
@@ -276,6 +322,117 @@ fun RouteInfoCard(
                 Text(
                     text = "⏱️ ${route.getFormattedDuration()}",
                     style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserGuidanceHint(
+    state: MapState,
+    modifier: Modifier = Modifier
+) {
+    val hintText = when {
+        state.destination == null -> "👆 Tap anywhere on the map to set your destination"
+        state.waypoints.isEmpty() -> "✨ Tap a road to add it as a waypoint"
+        else -> "🛣️ Keep tapping roads to add more waypoints"
+    }
+
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Text(
+            text = hintText,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun LoadingOverlay() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                CircularProgressIndicator()
+                Text(
+                    text = "Calculating route...",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ErrorCard(
+    error: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "⚠️ Error",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+
+                // Add helpful hints based on error type
+                if (error.contains("API key", ignoreCase = true)) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "💡 Fix: Run tools/fix_api_key.sh in WSL to create a valid API key",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Dismiss error",
+                    tint = MaterialTheme.colorScheme.onErrorContainer
                 )
             }
         }

@@ -41,6 +41,7 @@ class MapViewModel @Inject constructor(
             is MapEvent.ClearRoute -> clearRoute()
             is MapEvent.RequestLocationPermission -> requestLocationPermission()
             is MapEvent.ToggleDestinationInput -> toggleDestinationInput()
+            is MapEvent.DismissError -> dismissError()
         }
     }
 
@@ -184,5 +185,9 @@ class MapViewModel @Inject constructor(
         if (_state.value.destination != null && _state.value.route == null) {
             calculateRoute()
         }
+    }
+
+    private fun dismissError() {
+        _state.update { it.copy(error = null) }
     }
 }

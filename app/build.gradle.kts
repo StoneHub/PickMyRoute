@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -19,8 +22,25 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        // Read API key from local.properties
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.inputStream().use { stream ->
+                localProperties.load(stream)
+            }
+        }
+
+        val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY") ?: ""
+
+        // Log for debugging (will show in build output)
+        println("🔑 MAPS_API_KEY loaded: ${if (mapsApiKey.isNotEmpty()) mapsApiKey.take(10) + "..." else "EMPTY!"}")
+
+        if (mapsApiKey.isEmpty()) {
+            throw GradleException("❌ MAPS_API_KEY not found in local.properties!")
+        }
+
         // Expose API key to BuildConfig
-        val mapsApiKey: String = project.findProperty("MAPS_API_KEY") as String? ?: ""
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
 
         // Also add to AndroidManifest

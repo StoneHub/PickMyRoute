@@ -30,4 +30,5 @@ sealed class MapEvent {
     data object ClearRoute : MapEvent()
     data object RequestLocationPermission : MapEvent()
     data object ToggleDestinationInput : MapEvent()
+    data object DismissError : MapEvent()
 }
