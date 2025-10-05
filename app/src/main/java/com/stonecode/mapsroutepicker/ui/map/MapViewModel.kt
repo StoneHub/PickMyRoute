@@ -1,5 +1,6 @@
 package com.stonecode.mapsroutepicker.ui.map
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.maps.model.LatLng
@@ -42,6 +43,7 @@ class MapViewModel @Inject constructor(
             is MapEvent.RequestLocationPermission -> requestLocationPermission()
             is MapEvent.ToggleDestinationInput -> toggleDestinationInput()
             is MapEvent.DismissError -> dismissError()
+            is MapEvent.AnimateToLocation -> animateToLocation(event.location)
         }
     }
 
@@ -189,5 +191,11 @@ class MapViewModel @Inject constructor(
 
     private fun dismissError() {
         _state.update { it.copy(error = null) }
+    }
+
+    private fun animateToLocation(location: LatLng) {
+        // Camera animation will be handled in the composable
+        // This event is mainly for future extensions
+        Log.d("MapsRoutePicker", "📍 Animating to location: $location")
     }
 }

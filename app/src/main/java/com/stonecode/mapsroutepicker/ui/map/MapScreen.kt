@@ -9,16 +9,23 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import com.stonecode.mapsroutepicker.ui.permissions.LocationPermissionHandler
+import com.stonecode.mapsroutepicker.ui.map.components.WaypointTimeline
+import com.stonecode.mapsroutepicker.ui.map.components.MapControlFabs
+import com.stonecode.mapsroutepicker.ui.map.components.SwipeableRouteInfoCard
+import com.stonecode.mapsroutepicker.ui.map.components.getWaypointColor
 import com.stonecode.mapsroutepicker.util.PolylineDecoder
+import com.google.maps.android.compose.CameraUpdateFactory
 
 /**
  * Main map screen - displays Google Map with route, waypoints, and controls
@@ -92,6 +99,7 @@ private fun MapContent(
     state: MapState,
     viewModel: MapViewModel
 ) {
+    var showInitialHint by remember { mutableStateOf(true) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Main Google Map
@@ -99,86 +107,88 @@ private fun MapContent(
             state = state,
             onMapTapped = { location ->
                 viewModel.onEvent(MapEvent.MapTapped(location))
+                showInitialHint = false // Dismiss hint after first tap
             }
         )
 
-        // Top controls and waypoint timeline - WITH SYSTEM BAR PADDING
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .statusBarsPadding()  // Push below status bar
-                .padding(16.dp)
-        ) {
-            // Destination button - only show when no destination OR when explicitly toggled
-            if (state.destination == null) {
-                Button(
-                    onClick = { viewModel.onEvent(MapEvent.MapTapped(state.currentLocation ?: LatLng(0.0, 0.0))) },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = false // Disabled - user should tap map instead
-                ) {
-                    Text("Tap map to set destination")
-                }
-            } else {
-                // Show "Change Destination" button when destination exists
-                OutlinedButton(
-                    onClick = { viewModel.onEvent(MapEvent.ClearRoute) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Clear Route & Start Over")
-                }
-            }
-
-            // Waypoint timeline (if waypoints exist)
-            if (state.waypoints.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                WaypointTimeline(
-                    waypoints = state.waypoints,
-                    onRemoveWaypoint = { waypointId ->
-                        viewModel.onEvent(MapEvent.RemoveWaypoint(waypointId))
-                    }
-                )
-            }
-        }
-
-        // User guidance hints - floating at center-top - WITH SYSTEM BAR PADDING
-        if (state.error == null) {
-            UserGuidanceHint(
-                state = state,
+        // Top waypoint timeline - only show when waypoints exist
+        if (state.waypoints.isNotEmpty()) {
+            WaypointTimeline(
+                waypoints = state.waypoints,
+                onRemoveWaypoint = { waypointId ->
+                    viewModel.onEvent(MapEvent.RemoveWaypoint(waypointId))
+                },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .statusBarsPadding()  // Push below status bar
-                    .padding(top = 80.dp)
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(16.dp)
             )
         }
+
+        // Initial hint - dismissible, reappears if context changes
+        if (state.error == null && showInitialHint && state.destination == null && state.waypoints.isEmpty()) {
+            DismissibleInitialHint(
+                onDismiss = { showInitialHint = false },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(16.dp)
+                    .fillMaxWidth()
+            )
+        }
+
+        // Bottom-right FAB stack (My Location + Compass + Close button)
+        MapControlFabs(
+            onMyLocationClick = {
+                // Animate camera to current location
+                state.currentLocation?.let { location ->
+                    viewModel.onEvent(MapEvent.AnimateToLocation(location))
+                }
+            },
+            onCloseClick = {
+                viewModel.onEvent(MapEvent.ClearRoute)
+                showInitialHint = true // Show hint again after clearing
+            },
+            showCloseButton = state.destination != null || state.waypoints.isNotEmpty(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(16.dp)
+                .padding(bottom = if (state.route != null && state.error == null) 80.dp else 0.dp) // Extra padding when route card is visible
+        )
 
         // Loading indicator with message
         if (state.isLoading) {
             LoadingOverlay()
         }
 
-        // Error message - improved dismissible card - WITH NAVIGATION BAR PADDING
+        // Error message - improved dismissible card
         state.error?.let { error ->
             ErrorCard(
                 error = error,
                 onDismiss = { viewModel.onEvent(MapEvent.DismissError) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()  // Push above navigation bar
+                    .navigationBarsPadding()
                     .padding(16.dp)
                     .fillMaxWidth()
             )
         }
 
-        // Route info card (bottom) - only show when no error - WITH NAVIGATION BAR PADDING
+        // Route info card (bottom) - only show when no error - with swipe-to-reveal close
         if (state.error == null) {
             state.route?.let { route ->
-                RouteInfoCard(
+                SwipeableRouteInfoCard(
                     route = route,
+                    onClose = {
+                        viewModel.onEvent(MapEvent.ClearRoute)
+                        showInitialHint = true
+                    },
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()  // Push above navigation bar
-                        .padding(16.dp)
+                        .align(Alignment.BottomStart) // Changed from BottomCenter to BottomStart for swipe
+                        .navigationBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
                         .fillMaxWidth()
                 )
             }
@@ -205,6 +215,16 @@ private fun GoogleMapView(
         Log.d("MapsRoutePicker", "🗺️ GoogleMap composable being rendered")
     }
 
+    // Animate to current location when it changes and map is loaded
+    LaunchedEffect(state.currentLocation) {
+        state.currentLocation?.let { location ->
+            cameraPositionState.animate(
+                update = CameraUpdateFactory.newLatLngZoom(location, 15f),
+                durationMs = 1000
+            )
+        }
+    }
+
     GoogleMap(
         modifier = Modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
@@ -212,9 +232,9 @@ private fun GoogleMapView(
             isMyLocationEnabled = state.hasLocationPermission
         ),
         uiSettings = MapUiSettings(
-            myLocationButtonEnabled = true,
+            myLocationButtonEnabled = false, // Use custom FAB instead
             zoomControlsEnabled = false,
-            compassEnabled = true
+            compassEnabled = false // Moved to custom controls
         ),
         onMapClick = { location ->
             Log.d("MapsRoutePicker", "🎯 Map tapped at: $location")
@@ -229,66 +249,104 @@ private fun GoogleMapView(
             Marker(
                 state = MarkerState(position = destination),
                 title = "Destination",
-                snippet = "Your destination"
+                snippet = "Your destination",
+                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
             )
         }
 
-        // Waypoint markers
-        state.waypoints.forEach { waypoint ->
+        // Waypoint markers with labels (A, B, C...)
+        state.waypoints.sortedBy { it.order }.forEachIndexed { index, waypoint ->
             Marker(
                 state = MarkerState(position = waypoint.location),
-                title = waypoint.roadName ?: "Waypoint ${waypoint.order}",
-                snippet = "Tap to remove"
+                title = "Waypoint ${('A' + index)}",
+                snippet = "Tap to remove",
+                icon = BitmapDescriptorFactory.defaultMarker(getMarkerHue(index))
             )
         }
 
-        // Route polyline
+        // Color-coded route polylines for each segment
         state.route?.let { route ->
-            val polylinePoints = PolylineDecoder.decode(route.overviewPolyline)
-            Polyline(
-                points = polylinePoints,
-                color = Color(0xFF4285F4), // Google Blue
-                width = 12f
-            )
+            if (state.waypoints.isEmpty()) {
+                // Simple single-color route when no waypoints
+                val polylinePoints = PolylineDecoder.decode(route.overviewPolyline)
+                Polyline(
+                    points = polylinePoints,
+                    color = Color(0xFF4285F4), // Google Blue
+                    width = 12f
+                )
+            } else {
+                // Multi-colored route segments for each waypoint
+                route.legs.forEachIndexed { index, leg ->
+                    leg.steps.forEach { step ->
+                        val segmentPoints = PolylineDecoder.decode(step.polyline)
+                        val segmentColor = getWaypointColor(index)
+                        Polyline(
+                            points = segmentPoints,
+                            color = segmentColor,
+                            width = 12f
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
+/**
+ * Convert waypoint color to Google Maps marker hue (0-360)
+ */
+private fun getMarkerHue(index: Int): Float {
+    val hues = listOf(
+        0f,    // Red
+        210f,  // Blue
+        120f,  // Green
+        45f,   // Orange/Amber
+        270f,  // Purple
+        30f,   // Orange
+        180f,  // Cyan
+        0f,    // Dark Red
+        270f,  // Deep Purple
+        180f   // Teal
+    )
+    return hues[index % hues.size]
+}
+
 @Composable
-fun WaypointTimeline(
-    waypoints: List<com.stonecode.mapsroutepicker.domain.model.Waypoint>,
-    onRemoveWaypoint: (String) -> Unit
+private fun DismissibleInitialHint(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-        )
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("🏁", style = MaterialTheme.typography.bodySmall)
-
-            waypoints.sortedBy { it.order }.forEach { waypoint ->
-                Text("→", style = MaterialTheme.typography.bodySmall)
-                AssistChip(
-                    onClick = { onRemoveWaypoint(waypoint.id) },
-                    label = {
-                        Text(
-                            text = waypoint.roadName ?: "${waypoint.order}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+            Text(
+                text = "👆 Tap anywhere on the map to set your destination",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                textAlign = TextAlign.Start,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Text(
+                    text = "×",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-
-            Text("→", style = MaterialTheme.typography.bodySmall)
-            Text("🎯", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -301,15 +359,18 @@ fun RouteInfoCard(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-        )
+            containerColor = MaterialTheme.colorScheme.surface // Solid background for contrast
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
                 text = route.summary ?: "Route",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(
@@ -317,42 +378,18 @@ fun RouteInfoCard(
             ) {
                 Text(
                     text = "📍 ${route.getFormattedDistance()}",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "⏱️ ${route.getFormattedDuration()}",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun UserGuidanceHint(
-    state: MapState,
-    modifier: Modifier = Modifier
-) {
-    val hintText = when {
-        state.destination == null -> "👆 Tap anywhere on the map to set your destination"
-        state.waypoints.isEmpty() -> "✨ Tap a road to add it as a waypoint"
-        else -> "🛣️ Keep tapping roads to add more waypoints"
-    }
-
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Text(
-            text = hintText,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            textAlign = TextAlign.Center
-        )
     }
 }
 

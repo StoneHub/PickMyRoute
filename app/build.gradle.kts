@@ -67,9 +67,8 @@ android {
         kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
     }
     buildFeatures {
-        viewBinding = true
-        compose = true
-        buildConfig = true
+        compose = true        // Jetpack Compose UI
+        buildConfig = true    // For BuildConfig.MAPS_API_KEY
     }
 }
 

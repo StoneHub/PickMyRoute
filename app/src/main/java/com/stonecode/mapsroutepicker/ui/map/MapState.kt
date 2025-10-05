@@ -31,4 +31,5 @@ sealed class MapEvent {
     data object RequestLocationPermission : MapEvent()
     data object ToggleDestinationInput : MapEvent()
     data object DismissError : MapEvent()
+    data class AnimateToLocation(val location: LatLng) : MapEvent()
 }
