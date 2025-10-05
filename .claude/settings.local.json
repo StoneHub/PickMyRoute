@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gcloud:*)",
+      "Bash(find:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
