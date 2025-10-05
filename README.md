@@ -4,6 +4,8 @@
 
 PickMyRoute is an Android navigation app that lets you force routes through specific roads you prefer, instead of blindly following the algorithm. Perfect for drivers who know better routes, want scenic drives, or need to avoid certain areas.
 
+> ⚠️ **Security Notice**: Never commit `local.properties` with your API key to version control. This file is git-ignored by default. Use `local.properties.example` as a template.
+
 ## 🎯 The Problem It Solves
 
 Google Maps constantly optimizes routes algorithmically, often rerouting you away from roads you specifically want to drive on. PickMyRoute gives you the power to:
@@ -49,8 +51,8 @@ Google Maps constantly optimizes routes algorithmically, often rerouting you awa
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/PickMyRoute.git
-   cd PickMyRoute
+   git clone https://github.com/yourusername/MapsRoutePicker.git
+   cd MapsRoutePicker
    ```
 
 2. **Get a Google Maps API Key**
@@ -60,13 +62,22 @@ Google Maps constantly optimizes routes algorithmically, often rerouting you awa
      - Directions API
      - Geocoding API
    - Create an API key and restrict it to your app's package name
+   - See [docs/GOOGLE_CLOUD_SETUP.md](docs/GOOGLE_CLOUD_SETUP.md) for detailed instructions
 
 3. **Configure API Key**
    
-   Create `local.properties` in the project root (if not exists) and add:
+   Copy the example file and add your key:
+   ```bash
+   cp local.properties.example local.properties
+   ```
+   
+   Then edit `local.properties` and add your API key:
    ```properties
+   sdk.dir=C\:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
    MAPS_API_KEY=your_actual_api_key_here
    ```
+   
+   **⚠️ NEVER commit `local.properties` to git!**
 
 4. **Build and Run**
    ```bash
@@ -124,12 +135,13 @@ app/src/main/
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+### Quick Start for Contributors
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
 ## 📄 License
@@ -138,15 +150,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Google Maps Platform for mapping and routing services
-- Jetpack Compose team for the amazing UI toolkit
-- The Android developer community
+- Google Maps Platform for mapping and routing APIs
+- Jetpack Compose team for the modern UI toolkit
+- The Android open source community
 
-## 📧 Contact
+## 📮 Contact & Support
 
-Project Link: [https://github.com/yourusername/PickMyRoute](https://github.com/yourusername/PickMyRoute)
+- **Issues**: Use [GitHub Issues](https://github.com/yourusername/MapsRoutePicker/issues) for bug reports and feature requests
+- **Documentation**: Check the [docs/](docs/) folder for detailed guides
 
 ---
 
-**PickMyRoute** - *Your route, your way.*
-
+**Built with ❤️ using Kotlin and Jetpack Compose**

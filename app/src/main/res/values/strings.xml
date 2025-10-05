@@ -1,25 +1,33 @@
 <resources>
-    <string name="app_name">MapsRoutePicker</string>
-    <string name="navigation_drawer_open">Open navigation drawer</string>
-    <string name="navigation_drawer_close">Close navigation drawer</string>
-    <string name="nav_header_title">Android Studio</string>
-    <string name="nav_header_subtitle">android.studio@android.com</string>
-    <string name="nav_header_desc">Navigation header</string>
-    <string name="action_settings">Settings</string>
+    <string name="app_name">PickMyRoute</string>
 
-    <string name="menu_transform">Transform</string>
-    <string name="menu_reflow">Reflow</string>
-    <string name="menu_slideshow">Slideshow</string>
-    <string name="menu_settings">Settings</string>
+    <!-- Map Screen -->
+    <string name="map_tap_to_set_destination">Tap map to set destination</string>
+    <string name="map_tap_to_add_waypoint">Tap roads to add waypoints</string>
+    <string name="map_calculating_route">Calculating route…</string>
 
-    <string name="lorem_ipsum_title">Lorem Ipsum"</string>
-    <string name="lorem_ipsum">Lorem Ipsum is simply placeholder text of the printing and
-        typesetting industry. Lorem Ipsum has been the industry\'s standard placeholder text ever
-        since the 1500s, when an unknown printer took a galley of type and scrambled it to make a
-        type specimen book"
-    </string>
-    <string name="fab_content_description">Represents a view to invoke an action</string>
-    <string name="image_view_item_transform_content_description">Represents an image view in the
-        item
-    </string>
+    <!-- Location -->
+    <string name="location_permission_required">Location permission is required to show your position</string>
+    <string name="location_permission_rationale">We need your location to calculate routes from your current position</string>
+
+    <!-- Route Info -->
+    <string name="route_distance">Distance: %s</string>
+    <string name="route_duration">Duration: %s</string>
+
+    <!-- Waypoints -->
+    <string name="waypoint_removed">Waypoint removed</string>
+    <string name="waypoint_undo">Undo</string>
+
+    <!-- Errors -->
+    <string name="error_route_calculation">Failed to calculate route</string>
+    <string name="error_network">Network error. Check your connection.</string>
+    <string name="error_api_key">API key configuration error</string>
+    <string name="error_dismiss">Dismiss</string>
+
+    <!-- Content Descriptions (Accessibility) -->
+    <string name="cd_my_location_button">My location</string>
+    <string name="cd_compass_button">Reset compass</string>
+    <string name="cd_close_button">Close</string>
+    <string name="cd_waypoint_marker">Waypoint %s</string>
+    <string name="cd_destination_marker">Destination</string>
 </resources>

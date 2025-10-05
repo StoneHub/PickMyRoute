@@ -36,7 +36,18 @@ android {
         println("🔑 MAPS_API_KEY loaded: ${if (mapsApiKey.isNotEmpty()) mapsApiKey.take(10) + "..." else "EMPTY!"}")
 
         if (mapsApiKey.isEmpty()) {
-            throw GradleException("❌ MAPS_API_KEY not found in local.properties!")
+            throw GradleException(
+                """
+                ❌ MAPS_API_KEY not found in local.properties!
+                
+                To fix this:
+                1. Copy local.properties.example to local.properties
+                2. Add your Google Maps API key to local.properties
+                3. See docs/GOOGLE_CLOUD_SETUP.md for instructions
+                
+                ⚠️  NEVER commit local.properties to git!
+                """.trimIndent()
+            )
         }
 
         // Expose API key to BuildConfig
