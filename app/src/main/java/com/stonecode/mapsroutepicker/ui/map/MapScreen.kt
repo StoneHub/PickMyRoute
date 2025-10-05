@@ -14,7 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -25,7 +25,6 @@ import com.stonecode.mapsroutepicker.ui.map.components.MapControlFabs
 import com.stonecode.mapsroutepicker.ui.map.components.SwipeableRouteInfoCard
 import com.stonecode.mapsroutepicker.ui.map.components.getWaypointColor
 import com.stonecode.mapsroutepicker.util.PolylineDecoder
-import com.google.maps.android.compose.CameraUpdateFactory
 
 /**
  * Main map screen - displays Google Map with route, waypoints, and controls
@@ -345,48 +344,6 @@ private fun DismissibleInitialHint(
                     text = "×",
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun RouteInfoCard(
-    route: com.stonecode.mapsroutepicker.domain.model.Route,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface // Solid background for contrast
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = route.summary ?: "Route",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = "📍 ${route.getFormattedDistance()}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "⏱️ ${route.getFormattedDuration()}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
