@@ -43,6 +43,9 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+    composeOptions {
+        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
+    }
     buildFeatures {
         viewBinding = true
         compose = true
@@ -51,6 +54,12 @@ android {
 }
 
 dependencies {
+    constraints {
+        implementation("com.squareup:javapoet:1.13.0") {
+            because("Hilt's processors require ClassName.canonicalName() from newer JavaPoet")
+        }
+    }
+
     // Core Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
