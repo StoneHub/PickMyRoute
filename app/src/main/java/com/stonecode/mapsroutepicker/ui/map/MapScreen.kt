@@ -1,6 +1,7 @@
 package com.stonecode.mapsroutepicker.ui.map
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -9,8 +10,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -19,12 +20,14 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
+import com.stonecode.mapsroutepicker.domain.model.Waypoint
 import com.stonecode.mapsroutepicker.ui.permissions.LocationPermissionHandler
 import com.stonecode.mapsroutepicker.ui.map.components.WaypointTimeline
 import com.stonecode.mapsroutepicker.ui.map.components.MapControlFabs
 import com.stonecode.mapsroutepicker.ui.map.components.SwipeableRouteInfoCard
 import com.stonecode.mapsroutepicker.ui.map.components.getWaypointColor
 import com.stonecode.mapsroutepicker.util.PolylineDecoder
+import kotlinx.coroutines.launch
 
 /**
  * Main map screen - displays Google Map with route, waypoints, and controls
@@ -35,12 +38,33 @@ fun MapScreen(
     viewModel: MapViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Track removed waypoint for undo
+    var removedWaypoint by remember { mutableStateOf<Waypoint?>(null) }
+    var showInitialToast by remember { mutableStateOf(true) }
 
     // Debug: Log API key at runtime
     LaunchedEffect(Unit) {
         val apiKey = com.stonecode.mapsroutepicker.BuildConfig.MAPS_API_KEY
         Log.d("MapsRoutePicker", "🔑 API Key in app: ${apiKey.take(10)}...")
         Log.d("MapsRoutePicker", "📍 Current location: ${state.currentLocation}")
+    }
+
+    // Show initial toast when destination is null
+    LaunchedEffect(state.destination, showInitialToast) {
+        if (state.destination == null && showInitialToast && state.waypoints.isEmpty()) {
+            Toast.makeText(context, "👆 Tap anywhere on the map to set your destination", Toast.LENGTH_LONG).show()
+            showInitialToast = false
+        }
+    }
+
+    // Show toast when waypoints are added
+    LaunchedEffect(state.waypoints.size) {
+        if (state.waypoints.isNotEmpty() && state.waypoints.size > (removedWaypoint?.let { 0 } ?: 0)) {
+            Toast.makeText(context, "🛣️ Tap waypoints to remove • Tap map to add more", Toast.LENGTH_SHORT).show()
+        }
     }
 
     LocationPermissionHandler(
@@ -57,9 +81,29 @@ fun MapScreen(
                 onRequestPermission = { permissionState.launchMultiplePermissionRequest() }
             )
         } else {
-            // Show main map content with system bar padding
+            // Show main map content with snackbar host
             Box(modifier = Modifier.fillMaxSize()) {
-                MapContent(state = state, viewModel = viewModel)
+                MapContent(
+                    state = state,
+                    viewModel = viewModel,
+                    snackbarHostState = snackbarHostState,
+                    onWaypointRemoved = { waypoint ->
+                        removedWaypoint = waypoint
+                    },
+                    onUndoRemoval = { waypoint ->
+                        viewModel.onEvent(MapEvent.UndoRemoveWaypoint(waypoint))
+                        removedWaypoint = null
+                    }
+                )
+
+                // Snackbar for undo
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(16.dp)
+                )
             }
         }
     }
@@ -96,10 +140,13 @@ private fun PermissionRationaleContent(
 @Composable
 private fun MapContent(
     state: MapState,
-    viewModel: MapViewModel
+    viewModel: MapViewModel,
+    snackbarHostState: SnackbarHostState,
+    onWaypointRemoved: (Waypoint) -> Unit,
+    onUndoRemoval: (Waypoint) -> Unit
 ) {
-    var showInitialHint by remember { mutableStateOf(true) }
     var cameraPositionState: CameraPositionState? by remember { mutableStateOf(null) }
+    val scope = rememberCoroutineScope()
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Main Google Map
@@ -107,21 +154,19 @@ private fun MapContent(
             state = state,
             onMapTapped = { location ->
                 viewModel.onEvent(MapEvent.MapTapped(location))
-                showInitialHint = false
             },
             onCameraStateReady = { cameraState ->
                 cameraPositionState = cameraState
             }
         )
 
-        // Route info card (TOP) - moved from bottom
+        // Route info card (TOP)
         if (state.error == null) {
             state.route?.let { route ->
                 SwipeableRouteInfoCard(
                     route = route,
                     onClose = {
                         viewModel.onEvent(MapEvent.ClearRoute)
-                        showInitialHint = true
                     },
                     modifier = Modifier
                         .align(Alignment.TopCenter)
@@ -137,42 +182,33 @@ private fun MapContent(
             WaypointTimeline(
                 waypoints = state.waypoints,
                 onRemoveWaypoint = { waypointId ->
-                    viewModel.onEvent(MapEvent.RemoveWaypoint(waypointId))
+                    // Find the waypoint being removed
+                    val waypoint = state.waypoints.find { it.id == waypointId }
+                    waypoint?.let {
+                        onWaypointRemoved(it)
+                        viewModel.onEvent(MapEvent.RemoveWaypoint(waypointId))
+
+                        // Show snackbar with undo
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Waypoint removed",
+                                actionLabel = "UNDO",
+                                duration = SnackbarDuration.Short
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                onUndoRemoval(it)
+                            }
+                        }
+                    }
                 },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .fillMaxWidth()
                     .statusBarsPadding()
                     .padding(
                         start = 16.dp,
                         end = 16.dp,
                         top = if (state.route != null) 112.dp else 16.dp
                     )
-            )
-        }
-
-        // Initial hint (purple tip) - below waypoint widget if exists
-        if (state.error == null && showInitialHint && state.destination == null && state.waypoints.isEmpty()) {
-            DismissibleInitialHint(
-                onDismiss = { showInitialHint = false },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = if (state.waypoints.isNotEmpty()) {
-                            // Below waypoint widget
-                            if (state.route != null) 200.dp else 100.dp
-                        } else if (state.route != null) {
-                            // Below route card
-                            96.dp
-                        } else {
-                            // At top
-                            16.dp
-                        }
-                    )
-                    .fillMaxWidth()
             )
         }
 
@@ -186,7 +222,6 @@ private fun MapContent(
                     }
                 },
                 onCompassClick = {
-                    // Reset compass - just reset bearing/tilt, don't move camera
                     viewModel.onEvent(MapEvent.ResetCompass(cameraState.position.target))
                 },
                 modifier = Modifier
@@ -345,46 +380,6 @@ private fun getMarkerHue(index: Int): Float {
         180f   // Teal
     )
     return hues[index % hues.size]
-}
-
-@Composable
-private fun DismissibleInitialHint(
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "👆 Tap anywhere on the map to set your destination",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                textAlign = TextAlign.Start,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(
-                onClick = onDismiss,
-                modifier = Modifier.size(32.dp)
-            ) {
-                Text(
-                    text = "×",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-    }
 }
 
 @Composable

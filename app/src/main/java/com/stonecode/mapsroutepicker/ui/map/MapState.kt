@@ -28,6 +28,7 @@ sealed class MapEvent {
     data class SetDestination(val location: LatLng) : MapEvent()
     data class AddWaypoint(val location: LatLng) : MapEvent()
     data class RemoveWaypoint(val waypointId: String) : MapEvent()
+    data class UndoRemoveWaypoint(val waypoint: Waypoint) : MapEvent()
     data class ReorderWaypoints(val waypoints: List<Waypoint>) : MapEvent()
     data object ClearRoute : MapEvent()
     data object RequestLocationPermission : MapEvent()

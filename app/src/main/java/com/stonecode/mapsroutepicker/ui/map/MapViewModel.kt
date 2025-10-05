@@ -38,6 +38,7 @@ class MapViewModel @Inject constructor(
             is MapEvent.SetDestination -> setDestination(event.location)
             is MapEvent.AddWaypoint -> addWaypoint(event.location)
             is MapEvent.RemoveWaypoint -> removeWaypoint(event.waypointId)
+            is MapEvent.UndoRemoveWaypoint -> undoRemoveWaypoint(event.waypoint)
             is MapEvent.ReorderWaypoints -> reorderWaypoints(event.waypoints)
             is MapEvent.ClearRoute -> clearRoute()
             is MapEvent.RequestLocationPermission -> requestLocationPermission()
@@ -104,6 +105,24 @@ class MapViewModel @Inject constructor(
         if (updatedWaypoints.isNotEmpty() || _state.value.destination != null) {
             calculateRoute()
         }
+    }
+
+    private fun undoRemoveWaypoint(waypoint: Waypoint) {
+        val currentWaypoints = _state.value.waypoints.toMutableList()
+
+        // Insert waypoint back at its original position (or at the end if position is out of bounds)
+        val insertIndex = (waypoint.order - 1).coerceIn(0, currentWaypoints.size)
+        currentWaypoints.add(insertIndex, waypoint)
+
+        // Reorder all waypoints
+        val reorderedWaypoints = currentWaypoints.mapIndexed { index, wp ->
+            wp.copy(order = index + 1)
+        }
+
+        _state.update { it.copy(waypoints = reorderedWaypoints) }
+
+        // Recalculate route with restored waypoint
+        calculateRoute()
     }
 
     private fun reorderWaypoints(waypoints: List<Waypoint>) {

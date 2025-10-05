@@ -22,52 +22,37 @@ fun WaypointTimeline(
     modifier: Modifier = Modifier
 ) {
     val sortedWaypoints = waypoints.sortedBy { it.order }
-    var dismissedHint by remember { mutableStateOf(false) }
 
-    Column(modifier = modifier) {
-        // Dismissible hint card
-        if (sortedWaypoints.isNotEmpty() && !dismissedHint) {
-            DismissibleHintCard(
-                text = "🛣️ Tap waypoints to remove • Tap map to add more",
-                onDismiss = { dismissedHint = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            )
-        }
-
-        // Waypoint bubbles
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Start indicator
-                Text("🏁", style = MaterialTheme.typography.bodyMedium)
+            // Start indicator
+            Text("🏁", style = MaterialTheme.typography.bodyMedium)
 
-                // Waypoint bubbles
-                sortedWaypoints.forEachIndexed { index, waypoint ->
-                    Text("→", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-
-                    WaypointBubble(
-                        label = ('A' + index).toString(),
-                        color = getWaypointColor(index),
-                        onClick = { onRemoveWaypoint(waypoint.id) }
-                    )
-                }
-
+            // Waypoint bubbles
+            sortedWaypoints.forEachIndexed { index, waypoint ->
                 Text("→", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                Text("🎯", style = MaterialTheme.typography.bodyMedium)
+
+                WaypointBubble(
+                    label = ('A' + index).toString(),
+                    color = getWaypointColor(index),
+                    onClick = { onRemoveWaypoint(waypoint.id) }
+                )
             }
+
+            Text("→", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+            Text("🎯", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -97,45 +82,6 @@ private fun WaypointBubble(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
-    }
-}
-
-/**
- * Dismissible hint card
- */
-@Composable
-private fun DismissibleHintCard(
-    text: String,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(
-                onClick = onDismiss,
-                modifier = Modifier.size(24.dp)
-            ) {
-                Text("×", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-        }
     }
 }
 
