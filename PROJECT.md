@@ -442,10 +442,60 @@ For development and personal use, we'll stay well within free tier.
 
 ---
 
-## Next Steps
+## Current Status & Next Steps
 
-1. Answer clarifying questions
-2. Set up Google Cloud project and APIs
-3. Update build.gradle.kts with required dependencies
-4. Create basic Compose map screen
-5. Start with Phase 1 implementation
+### ✅ Completed (MVP Core)
+- Google Cloud project + API keys configured
+- Clean architecture with Hilt DI
+- Location tracking with permissions
+- Map display with Google Maps Compose
+- Destination selection via map tap
+- Route calculation via Directions API
+- Polyline rendering on map
+- Waypoint system (backend ready, UI needs polish)
+
+### 🔄 Before First Device Test
+**Critical:**
+1. Build project (`./gradlew assembleDebug`)
+2. Verify no compilation errors
+3. Check Maps Compose library compatibility
+4. Test on physical device with GPS
+
+**Known Issues to Monitor:**
+- Camera doesn't auto-zoom to route bounds
+- Loading spinner is subtle
+- Error messages are generic
+- Waypoint markers all look the same
+- No user guidance hints
+
+### 📋 Post-Testing Improvements (Priority Order)
+
+**P0 - Critical UX (Do First):**
+1. Camera animation when route calculated
+2. Better error handling (network, API key, quota)
+3. User hints ("Tap to set destination", etc.)
+4. Persistent error card with retry button
+5. Visual distinction for waypoint markers
+
+**P1 - Polish (Nice to Have):**
+1. Modal loading overlay
+2. "Clear route" button
+3. Waypoint chip interactions (tap to remove)
+4. Long-press to add multiple waypoints
+5. Drag to reorder waypoints in timeline
+
+**P2 - Performance:**
+1. Debounce waypoint additions (500ms)
+2. Move polyline decoding off main thread
+3. Lower location update frequency when idle
+
+**P3 - Production Readiness:**
+1. Add ProGuard rules
+2. Write unit tests for domain/repository layers
+3. Add integration tests for API
+4. Consider backend proxy for API key
+
+### 📚 Documentation
+- See `docs/LESSONS_LEARNED.md` for detailed insights from development
+- See `docs/TESTING.md` for device testing checklist (created below)
+- See `docs/api/*.md` for Google Maps API references
