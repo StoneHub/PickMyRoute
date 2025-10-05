@@ -25,6 +25,7 @@ import com.stonecode.mapsroutepicker.ui.permissions.LocationPermissionHandler
 import com.stonecode.mapsroutepicker.ui.map.components.WaypointTimeline
 import com.stonecode.mapsroutepicker.ui.map.components.MapControlFabs
 import com.stonecode.mapsroutepicker.ui.map.components.SwipeableRouteInfoCard
+import com.stonecode.mapsroutepicker.ui.map.components.PlaceSearchBar
 import com.stonecode.mapsroutepicker.ui.map.components.getWaypointColor
 import com.stonecode.mapsroutepicker.util.PolylineDecoder
 import kotlinx.coroutines.launch
@@ -160,8 +161,41 @@ private fun MapContent(
             }
         )
 
-        // Route info card (TOP)
-        if (state.error == null) {
+        // Search bar at the very top
+        PlaceSearchBar(
+            searchQuery = state.searchQuery,
+            predictions = state.searchPredictions,
+            isSearching = state.isSearching,
+            isExpanded = state.isSearchBarExpanded,
+            onQueryChange = { query ->
+                viewModel.onEvent(MapEvent.SearchQueryChanged(query))
+                // Expand when user starts typing
+                if (query.isNotEmpty() && !state.isSearchBarExpanded) {
+                    viewModel.onEvent(MapEvent.ExpandSearchBar)
+                }
+            },
+            onResultSelected = { placeId ->
+                viewModel.onEvent(MapEvent.SearchResultSelected(placeId))
+            },
+            onExpandChange = { expanded ->
+                if (expanded) {
+                    viewModel.onEvent(MapEvent.ExpandSearchBar)
+                } else {
+                    viewModel.onEvent(MapEvent.CollapseSearchBar)
+                }
+            },
+            onClearSearch = {
+                viewModel.onEvent(MapEvent.ClearSearch)
+            },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .fillMaxWidth()
+        )
+
+        // Route info card - below search bar
+        if (state.error == null && !state.isSearchBarExpanded) {
             state.route?.let { route ->
                 SwipeableRouteInfoCard(
                     route = route,
@@ -171,14 +205,19 @@ private fun MapContent(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .statusBarsPadding()
-                        .padding(start = 16.dp, top = 16.dp, end = 16.dp)
+                        .padding(start = 16.dp, top = 88.dp, end = 16.dp)
                         .fillMaxWidth()
                 )
             }
         }
 
-        // Waypoint timeline - below route card if exists
-        if (state.waypoints.isNotEmpty()) {
+        // Waypoint timeline - below route card or search bar
+        if (state.waypoints.isNotEmpty() && !state.isSearchBarExpanded) {
+            val topPadding = when {
+                state.route != null -> 184.dp  // Below route card
+                else -> 88.dp                   // Below search bar
+            }
+
             WaypointTimeline(
                 waypoints = state.waypoints,
                 onRemoveWaypoint = { waypointId ->
@@ -207,7 +246,7 @@ private fun MapContent(
                     .padding(
                         start = 16.dp,
                         end = 16.dp,
-                        top = if (state.route != null) 112.dp else 16.dp
+                        top = topPadding
                     )
             )
         }

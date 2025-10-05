@@ -6,30 +6,58 @@ import androidx.lifecycle.viewModelScope
 import com.google.android.gms.maps.model.LatLng
 import com.stonecode.mapsroutepicker.domain.model.Waypoint
 import com.stonecode.mapsroutepicker.domain.repository.LocationRepository
+import com.stonecode.mapsroutepicker.domain.repository.PlacesRepository
 import com.stonecode.mapsroutepicker.domain.repository.RoutingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
  * ViewModel for the map screen
- * Manages route state, waypoints, and interactions with routing repository
+ * Manages route state, waypoints, search, and interactions with repositories
  */
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class MapViewModel @Inject constructor(
     private val locationRepository: LocationRepository,
-    private val routingRepository: RoutingRepository
+    private val routingRepository: RoutingRepository,
+    private val placesRepository: PlacesRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MapState())
     val state: StateFlow<MapState> = _state.asStateFlow()
 
+    // Separate flow for search query to enable debouncing
+    private val searchQueryFlow = MutableStateFlow("")
+
     init {
         // Location updates will start when permission is granted
+        setupSearchDebouncing()
+    }
+
+    /**
+     * Set up debounced search - waits 300ms after user stops typing
+     */
+    private fun setupSearchDebouncing() {
+        viewModelScope.launch {
+            searchQueryFlow
+                .debounce(300) // Wait 300ms after last keystroke
+                .distinctUntilChanged() // Only search if query actually changed
+                .filter { it.length >= 2 } // Minimum 2 characters
+                .mapLatest { query ->
+                    performSearch(query)
+                }
+                .collect { }
+        }
     }
 
     fun onEvent(event: MapEvent) {
@@ -46,11 +74,22 @@ class MapViewModel @Inject constructor(
             is MapEvent.DismissError -> dismissError()
             is MapEvent.AnimateToLocation -> animateToLocation(event.location)
             is MapEvent.ResetCompass -> resetCompass(event.location, event.zoom)
+            // Search events
+            is MapEvent.SearchQueryChanged -> handleSearchQueryChanged(event.query)
+            is MapEvent.SearchResultSelected -> handleSearchResultSelected(event.placeId)
+            is MapEvent.ExpandSearchBar -> expandSearchBar()
+            is MapEvent.CollapseSearchBar -> collapseSearchBar()
+            is MapEvent.ClearSearch -> clearSearch()
         }
     }
 
     private fun handleMapTap(location: LatLng) {
         val currentState = _state.value
+
+        // Don't handle map taps when search bar is expanded
+        if (currentState.isSearchBarExpanded) {
+            return
+        }
 
         when {
             // If no destination, set it
@@ -173,6 +212,95 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    // Search functionality
+
+    private fun handleSearchQueryChanged(query: String) {
+        _state.update { it.copy(searchQuery = query, searchError = null) }
+
+        if (query.isEmpty()) {
+            // Clear predictions if query is empty
+            _state.update { it.copy(searchPredictions = emptyList(), isSearching = false) }
+        } else {
+            // Trigger debounced search
+            searchQueryFlow.value = query
+            _state.update { it.copy(isSearching = true) }
+        }
+    }
+
+    private suspend fun performSearch(query: String) {
+        try {
+            val predictions = placesRepository.searchPlaces(
+                query = query,
+                userLocation = _state.value.currentLocation
+            )
+            _state.update { it.copy(
+                searchPredictions = predictions,
+                isSearching = false,
+                searchError = null
+            )}
+        } catch (e: Exception) {
+            Log.e("MapViewModel", "Search failed", e)
+            _state.update { it.copy(
+                searchPredictions = emptyList(),
+                isSearching = false,
+                searchError = "Search failed: ${e.message}"
+            )}
+        }
+    }
+
+    private fun handleSearchResultSelected(placeId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(isSearching = true) }
+
+            try {
+                val location = placesRepository.getPlaceLocation(placeId)
+
+                // Set as destination
+                setDestination(location)
+
+                // Collapse search bar and clear search
+                _state.update { it.copy(
+                    isSearchBarExpanded = false,
+                    searchQuery = "",
+                    searchPredictions = emptyList(),
+                    isSearching = false,
+                    searchError = null
+                )}
+
+                // Animate camera to selected location
+                animateToLocation(location)
+
+            } catch (e: Exception) {
+                Log.e("MapViewModel", "Failed to get place location", e)
+                _state.update { it.copy(
+                    isSearching = false,
+                    searchError = "Failed to select place: ${e.message}"
+                )}
+            }
+        }
+    }
+
+    private fun expandSearchBar() {
+        _state.update { it.copy(isSearchBarExpanded = true) }
+    }
+
+    private fun collapseSearchBar() {
+        _state.update { it.copy(
+            isSearchBarExpanded = false,
+            searchQuery = "",
+            searchPredictions = emptyList(),
+            searchError = null
+        )}
+    }
+
+    private fun clearSearch() {
+        _state.update { it.copy(
+            searchQuery = "",
+            searchPredictions = emptyList(),
+            searchError = null
+        )}
+    }
+
     private fun requestLocationPermission() {
         _state.update { it.copy(hasLocationPermission = true) }
 
@@ -215,10 +343,10 @@ class MapViewModel @Inject constructor(
 
     private fun animateToLocation(location: LatLng) {
         Log.d("MapsRoutePicker", "📍 Animating to location: $location")
-        
+
         val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(location, 16f)
         _state.update { it.copy(cameraAnimationTarget = cameraUpdate) }
-        
+
         // Clear the target after animation completes
         viewModelScope.launch {
             kotlinx.coroutines.delay(1000) // Wait for 800ms animation + buffer
@@ -237,10 +365,10 @@ class MapViewModel @Inject constructor(
             .bearing(0f) // Reset to north
             .tilt(0f) // Flatten the view
             .build()
-        
+
         val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(cameraPosition)
         _state.update { it.copy(cameraAnimationTarget = cameraUpdate) }
-        
+
         // Clear the target after animation completes
         viewModelScope.launch {
             kotlinx.coroutines.delay(1000)

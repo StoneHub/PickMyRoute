@@ -1,7 +1,10 @@
 package com.stonecode.mapsroutepicker.di
 
 import com.stonecode.mapsroutepicker.data.remote.DirectionsApi
+import com.stonecode.mapsroutepicker.data.remote.PlacesApi
+import com.stonecode.mapsroutepicker.data.repository.PlacesRepositoryImpl
 import com.stonecode.mapsroutepicker.data.repository.RoutingRepositoryImpl
+import com.stonecode.mapsroutepicker.domain.repository.PlacesRepository
 import com.stonecode.mapsroutepicker.domain.repository.RoutingRepository
 import dagger.Module
 import dagger.Provides
@@ -55,9 +58,23 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun providePlacesApi(retrofit: Retrofit): PlacesApi {
+        return retrofit.create(PlacesApi::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideRoutingRepository(
         directionsApi: DirectionsApi
     ): RoutingRepository {
         return RoutingRepositoryImpl(directionsApi)
+    }
+
+    @Provides
+    @Singleton
+    fun providePlacesRepository(
+        placesApi: PlacesApi
+    ): PlacesRepository {
+        return PlacesRepositoryImpl(placesApi)
     }
 }

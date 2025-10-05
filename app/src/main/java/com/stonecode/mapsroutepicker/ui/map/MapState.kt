@@ -2,6 +2,7 @@ package com.stonecode.mapsroutepicker.ui.map
 
 import com.google.android.gms.maps.CameraUpdate
 import com.google.android.gms.maps.model.LatLng
+import com.stonecode.mapsroutepicker.domain.model.PlacePrediction
 import com.stonecode.mapsroutepicker.domain.model.Route
 import com.stonecode.mapsroutepicker.domain.model.Waypoint
 
@@ -17,7 +18,13 @@ data class MapState(
     val error: String? = null,
     val hasLocationPermission: Boolean = false,
     val showDestinationInput: Boolean = false,
-    val cameraAnimationTarget: CameraUpdate? = null
+    val cameraAnimationTarget: CameraUpdate? = null,
+    // Search functionality
+    val searchQuery: String = "",
+    val searchPredictions: List<PlacePrediction> = emptyList(),
+    val isSearching: Boolean = false,
+    val isSearchBarExpanded: Boolean = false,
+    val searchError: String? = null
 )
 
 /**
@@ -36,4 +43,10 @@ sealed class MapEvent {
     data object DismissError : MapEvent()
     data class AnimateToLocation(val location: LatLng) : MapEvent()
     data class ResetCompass(val location: LatLng, val zoom: Float) : MapEvent()
+    // Search events
+    data class SearchQueryChanged(val query: String) : MapEvent()
+    data class SearchResultSelected(val placeId: String) : MapEvent()
+    data object ExpandSearchBar : MapEvent()
+    data object CollapseSearchBar : MapEvent()
+    data object ClearSearch : MapEvent()
 }
