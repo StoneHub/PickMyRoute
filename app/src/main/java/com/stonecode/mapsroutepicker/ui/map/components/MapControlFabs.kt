@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material3.*
@@ -13,16 +12,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.google.maps.android.compose.CameraPositionState
 
 /**
  * Floating Action Buttons stacked in bottom-right corner
- * Contains Compass, My Location button, and Close (X) button
+ * Contains Compass and My Location buttons
  */
 @Composable
 fun MapControlFabs(
+    cameraPositionState: CameraPositionState,
     onMyLocationClick: () -> Unit,
-    onCloseClick: () -> Unit,
-    showCloseButton: Boolean,
+    onCompassClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -30,37 +30,21 @@ fun MapControlFabs(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.End
     ) {
-        // Close button (X) - only show when route exists
-        if (showCloseButton) {
-            FloatingActionButton(
-                onClick = onCloseClick,
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.size(56.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Clear route",
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
-
-        // Compass/Navigation button
+        // Compass/Navigation button - Reset bearing to north
         FloatingActionButton(
-            onClick = { /* TODO: Re-center and rotate to north */ },
+            onClick = onCompassClick,
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier.size(56.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Navigation,
-                contentDescription = "Compass",
+                contentDescription = "Reset compass to north",
                 modifier = Modifier.size(28.dp)
             )
         }
 
-        // My Location button
+        // My Location button - Center on user
         FloatingActionButton(
             onClick = onMyLocationClick,
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -69,7 +53,7 @@ fun MapControlFabs(
         ) {
             Icon(
                 imageVector = Icons.Default.MyLocation,
-                contentDescription = "My location",
+                contentDescription = "Center on my location",
                 modifier = Modifier.size(28.dp)
             )
         }

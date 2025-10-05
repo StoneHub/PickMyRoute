@@ -1,5 +1,6 @@
 package com.stonecode.mapsroutepicker.ui.map
 
+import com.google.android.gms.maps.CameraUpdate
 import com.google.android.gms.maps.model.LatLng
 import com.stonecode.mapsroutepicker.domain.model.Route
 import com.stonecode.mapsroutepicker.domain.model.Waypoint
@@ -15,7 +16,8 @@ data class MapState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val hasLocationPermission: Boolean = false,
-    val showDestinationInput: Boolean = false
+    val showDestinationInput: Boolean = false,
+    val cameraAnimationTarget: CameraUpdate? = null
 )
 
 /**
@@ -32,4 +34,5 @@ sealed class MapEvent {
     data object ToggleDestinationInput : MapEvent()
     data object DismissError : MapEvent()
     data class AnimateToLocation(val location: LatLng) : MapEvent()
+    data class ResetCompass(val location: LatLng) : MapEvent()
 }

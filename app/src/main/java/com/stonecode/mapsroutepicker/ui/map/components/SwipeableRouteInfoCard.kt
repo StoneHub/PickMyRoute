@@ -1,6 +1,7 @@
 package com.stonecode.mapsroutepicker.ui.map.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -10,16 +11,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.stonecode.mapsroutepicker.domain.model.Route
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
  * Route info card with swipe-to-reveal close button
- * Swipe left to reveal X button, tap X to close, tap elsewhere to hide X
+ * Features: 200dp swipe distance, spring physics, velocity tracking, reduced haptic feedback
  */
 @Composable
 fun SwipeableRouteInfoCard(
@@ -27,27 +32,46 @@ fun SwipeableRouteInfoCard(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var offsetX by remember { mutableStateOf(0f) }
+    var dragOffsetX by remember { mutableStateOf(0f) }
     var isRevealed by remember { mutableStateOf(false) }
+    var wasRevealed by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    val velocityTracker = remember { VelocityTracker() }
 
+    // Spring animation only when not dragging
     val animatedOffset by animateFloatAsState(
-        targetValue = if (isRevealed) -80f else 0f,
+        targetValue = if (isRevealed && dragOffsetX == 0f) -200f else dragOffsetX,
+        animationSpec = spring(
+            dampingRatio = 0.7f,
+            stiffness = 300f
+        ),
         label = "card_swipe"
     )
 
     Box(
         modifier = modifier
     ) {
-        // Background close button (revealed when swiped)
-        if (isRevealed) {
+        // Background close button (shows as you drag or when revealed)
+        if (isRevealed || dragOffsetX < -50f) {
+            val buttonAlpha = if (dragOffsetX < 0f) {
+                (abs(dragOffsetX) / 200f).coerceIn(0f, 1f)
+            } else if (isRevealed) {
+                1f
+            } else {
+                0f
+            }
+
             FilledTonalButton(
                 onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onClose()
                     isRevealed = false
                 },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .size(64.dp),
+                    .size(80.dp)
+                    .padding(8.dp)
+                    .alpha(buttonAlpha),
                 colors = ButtonDefaults.filledTonalButtonColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -56,7 +80,7 @@ fun SwipeableRouteInfoCard(
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Close route",
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(40.dp)
                 )
             }
         }
@@ -68,19 +92,42 @@ fun SwipeableRouteInfoCard(
                 .offset { IntOffset(animatedOffset.roundToInt(), 0) }
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
-                        onDragEnd = {
-                            // Snap to revealed or hidden based on drag distance
-                            isRevealed = offsetX < -40f
-                            offsetX = 0f
+                        onDragStart = {
+                            velocityTracker.resetTracking()
+                            wasRevealed = isRevealed
                         },
-                        onHorizontalDrag = { _, dragAmount ->
-                            offsetX += dragAmount
-                            // Only allow left swipe
-                            if (offsetX < 0 && offsetX > -100f) {
-                                // Drag in progress
+                        onDragEnd = {
+                            val velocity = velocityTracker.calculateVelocity().x
+
+                            // Fling detection: fast swipe triggers reveal
+                            val shouldReveal = if (abs(velocity) > 1000f) {
+                                velocity < -500f // Swiping left fast
                             } else {
-                                offsetX = offsetX.coerceIn(-100f, 0f)
+                                dragOffsetX < -100f // Dragged past halfway
                             }
+
+                            // Only haptic feedback when state changes
+                            if (shouldReveal != wasRevealed) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+
+                            isRevealed = shouldReveal
+                            dragOffsetX = 0f
+                        },
+                        onDragCancel = {
+                            isRevealed = wasRevealed
+                            dragOffsetX = 0f
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            velocityTracker.addPosition(
+                                change.uptimeMillis,
+                                change.position
+                            )
+
+                            dragOffsetX += dragAmount
+                            // Only allow left swipe, constrain to 0 to -220
+                            dragOffsetX = dragOffsetX.coerceIn(-220f, 0f)
                         }
                     )
                 },
@@ -89,8 +136,9 @@ fun SwipeableRouteInfoCard(
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
             onClick = {
-                // Tap to hide X button if revealed
+                // Tap to hide close button if revealed
                 if (isRevealed) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     isRevealed = false
                 }
             }
@@ -128,15 +176,14 @@ fun SwipeableRouteInfoCard(
                     }
                 }
 
-                // Swipe hint indicator
+                // Swipe hint indicator - pulses to show it's swipeable
                 Text(
                     text = if (isRevealed) "◄" else "◄◄",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                    modifier = Modifier.alpha(if (isRevealed) 0.3f else 0.6f)
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isRevealed) 0.3f else 0.5f),
+                    modifier = Modifier.alpha(if (isRevealed) 0.3f else 0.7f)
                 )
             }
         }
     }
 }
-

@@ -44,6 +44,7 @@ class MapViewModel @Inject constructor(
             is MapEvent.ToggleDestinationInput -> toggleDestinationInput()
             is MapEvent.DismissError -> dismissError()
             is MapEvent.AnimateToLocation -> animateToLocation(event.location)
+            is MapEvent.ResetCompass -> resetCompass(event.location)
         }
     }
 
@@ -194,8 +195,36 @@ class MapViewModel @Inject constructor(
     }
 
     private fun animateToLocation(location: LatLng) {
-        // Camera animation will be handled in the composable
-        // This event is mainly for future extensions
         Log.d("MapsRoutePicker", "📍 Animating to location: $location")
+        
+        val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(location, 16f)
+        _state.update { it.copy(cameraAnimationTarget = cameraUpdate) }
+        
+        // Clear the target after animation completes
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(1000) // Wait for 800ms animation + buffer
+            _state.update { it.copy(cameraAnimationTarget = null) }
+        }
+    }
+
+    private fun resetCompass(location: LatLng) {
+        Log.d("MapsRoutePicker", "🧭 Resetting compass to north and centering on location: $location")
+        
+        // Reset bearing to 0 (north) and tilt to 0 (flat), zoom to 16
+        val cameraPosition = com.google.android.gms.maps.model.CameraPosition.Builder()
+            .target(location)
+            .zoom(16f)
+            .bearing(0f)
+            .tilt(0f)
+            .build()
+        
+        val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(cameraPosition)
+        _state.update { it.copy(cameraAnimationTarget = cameraUpdate) }
+        
+        // Clear the target after animation completes
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(1000) // Wait for 800ms animation + buffer
+            _state.update { it.copy(cameraAnimationTarget = null) }
+        }
     }
 }

@@ -99,6 +99,7 @@ private fun MapContent(
     viewModel: MapViewModel
 ) {
     var showInitialHint by remember { mutableStateOf(true) }
+    var cameraPositionState: CameraPositionState? by remember { mutableStateOf(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Main Google Map
@@ -106,26 +107,54 @@ private fun MapContent(
             state = state,
             onMapTapped = { location ->
                 viewModel.onEvent(MapEvent.MapTapped(location))
-                showInitialHint = false // Dismiss hint after first tap
+                showInitialHint = false
+            },
+            onCameraStateReady = { cameraState ->
+                cameraPositionState = cameraState
             }
         )
 
-        // Top waypoint timeline - only show when waypoints exist
+        // Route info card (TOP) - moved from bottom
+        if (state.error == null) {
+            state.route?.let { route ->
+                SwipeableRouteInfoCard(
+                    route = route,
+                    onClose = {
+                        viewModel.onEvent(MapEvent.ClearRoute)
+                        showInitialHint = true
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(start = 16.dp, top = 16.dp, end = 16.dp)
+                        .fillMaxWidth()
+                )
+            }
+        }
+
+        // Waypoint timeline - below route card if exists
         if (state.waypoints.isNotEmpty()) {
             WaypointTimeline(
                 waypoints = state.waypoints,
                 onRemoveWaypoint = { waypointId ->
                     viewModel.onEvent(MapEvent.RemoveWaypoint(waypointId))
                 },
+                onReorderWaypoints = { reorderedWaypoints ->
+                    viewModel.onEvent(MapEvent.ReorderWaypoints(reorderedWaypoints))
+                },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(16.dp)
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = if (state.route != null) 112.dp else 16.dp // Added more spacing from route card
+                    )
             )
         }
 
-        // Initial hint - dismissible, reappears if context changes
+        // Initial hint
         if (state.error == null && showInitialHint && state.destination == null && state.waypoints.isEmpty()) {
             DismissibleInitialHint(
                 onDismiss = { showInitialHint = false },
@@ -137,32 +166,33 @@ private fun MapContent(
             )
         }
 
-        // Bottom-right FAB stack (My Location + Compass + Close button)
-        MapControlFabs(
-            onMyLocationClick = {
-                // Animate camera to current location
-                state.currentLocation?.let { location ->
-                    viewModel.onEvent(MapEvent.AnimateToLocation(location))
-                }
-            },
-            onCloseClick = {
-                viewModel.onEvent(MapEvent.ClearRoute)
-                showInitialHint = true // Show hint again after clearing
-            },
-            showCloseButton = state.destination != null || state.waypoints.isNotEmpty(),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(16.dp)
-                .padding(bottom = if (state.route != null && state.error == null) 80.dp else 0.dp) // Extra padding when route card is visible
-        )
+        // FAB stack (NO X BUTTON) - only show when camera is ready
+        cameraPositionState?.let { cameraState ->
+            MapControlFabs(
+                cameraPositionState = cameraState,
+                onMyLocationClick = {
+                    state.currentLocation?.let { location ->
+                        viewModel.onEvent(MapEvent.AnimateToLocation(location))
+                    }
+                },
+                onCompassClick = {
+                    state.currentLocation?.let { location ->
+                        viewModel.onEvent(MapEvent.ResetCompass(location))
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(16.dp)
+            )
+        }
 
-        // Loading indicator with message
+        // Loading indicator
         if (state.isLoading) {
             LoadingOverlay()
         }
 
-        // Error message - improved dismissible card
+        // Error message
         state.error?.let { error ->
             ErrorCard(
                 error = error,
@@ -174,31 +204,14 @@ private fun MapContent(
                     .fillMaxWidth()
             )
         }
-
-        // Route info card (bottom) - only show when no error - with swipe-to-reveal close
-        if (state.error == null) {
-            state.route?.let { route ->
-                SwipeableRouteInfoCard(
-                    route = route,
-                    onClose = {
-                        viewModel.onEvent(MapEvent.ClearRoute)
-                        showInitialHint = true
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomStart) // Changed from BottomCenter to BottomStart for swipe
-                        .navigationBarsPadding()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                        .fillMaxWidth()
-                )
-            }
-        }
     }
 }
 
 @Composable
 private fun GoogleMapView(
     state: MapState,
-    onMapTapped: (LatLng) -> Unit
+    onMapTapped: (LatLng) -> Unit,
+    onCameraStateReady: (CameraPositionState) -> Unit = {}
 ) {
     // Default camera position (San Francisco)
     val defaultLocation = LatLng(37.7749, -122.4194)
@@ -209,17 +222,32 @@ private fun GoogleMapView(
         )
     }
 
+    // Track if we've done initial zoom to user location
+    var hasInitiallyZoomed by remember { mutableStateOf(false) }
+
     // Debug: Log when map is being composed
     LaunchedEffect(Unit) {
         Log.d("MapsRoutePicker", "🗺️ GoogleMap composable being rendered")
+        onCameraStateReady(cameraPositionState)
     }
 
-    // Animate to current location when it changes and map is loaded
+    // Only animate to current location ONCE on initial load
     LaunchedEffect(state.currentLocation) {
-        state.currentLocation?.let { location ->
+        if (!hasInitiallyZoomed && state.currentLocation != null) {
             cameraPositionState.animate(
-                update = CameraUpdateFactory.newLatLngZoom(location, 15f),
+                update = CameraUpdateFactory.newLatLngZoom(state.currentLocation!!, 15f),
                 durationMs = 1000
+            )
+            hasInitiallyZoomed = true
+        }
+    }
+
+    // Listen for camera animation requests from ViewModel
+    LaunchedEffect(state.cameraAnimationTarget) {
+        state.cameraAnimationTarget?.let { target ->
+            cameraPositionState.animate(
+                update = target,
+                durationMs = 800
             )
         }
     }
