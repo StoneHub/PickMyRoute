@@ -45,7 +45,7 @@ class MapViewModel @Inject constructor(
             is MapEvent.ToggleDestinationInput -> toggleDestinationInput()
             is MapEvent.DismissError -> dismissError()
             is MapEvent.AnimateToLocation -> animateToLocation(event.location)
-            is MapEvent.ResetCompass -> resetCompass(event.location)
+            is MapEvent.ResetCompass -> resetCompass(event.location, event.zoom)
         }
     }
 
@@ -226,15 +226,16 @@ class MapViewModel @Inject constructor(
         }
     }
 
-    private fun resetCompass(location: LatLng) {
-        Log.d("MapsRoutePicker", "🧭 Resetting compass to north at current position: $location")
+    private fun resetCompass(location: LatLng, zoom: Float) {
+        Log.d("MapsRoutePicker", "🧭 Resetting compass to north at zoom level: $zoom")
 
-        // Reset bearing to 0 (north) and tilt to 0 (flat), keep current zoom and position
+        // Reset bearing to 0 (north) and tilt to 0 (flat), but preserve current zoom and position
+        // This matches Google Maps official behavior - only rotate the map, don't zoom or move
         val cameraPosition = com.google.android.gms.maps.model.CameraPosition.Builder()
-            .target(location) // Keep current camera target (wherever user is looking)
-            .zoom(16f)
+            .target(location) // Keep current camera target
+            .zoom(zoom) // Preserve current zoom level
             .bearing(0f) // Reset to north
-            .tilt(0f) // Flatten
+            .tilt(0f) // Flatten the view
             .build()
         
         val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(cameraPosition)

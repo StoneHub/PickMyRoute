@@ -1,6 +1,8 @@
 package com.stonecode.mapsroutepicker.ui.map.components
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,6 +16,7 @@ import com.stonecode.mapsroutepicker.domain.model.Waypoint
 /**
  * Waypoint timeline showing route progression
  * Tap a waypoint bubble to remove it
+ * Horizontally scrollable when there are many waypoints
  */
 @Composable
 fun WaypointTimeline(
@@ -22,6 +25,7 @@ fun WaypointTimeline(
     modifier: Modifier = Modifier
 ) {
     val sortedWaypoints = waypoints.sortedBy { it.order }
+    val scrollState = rememberScrollState()
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -33,6 +37,7 @@ fun WaypointTimeline(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(scrollState)
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically

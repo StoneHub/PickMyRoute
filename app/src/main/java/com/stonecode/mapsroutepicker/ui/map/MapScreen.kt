@@ -222,7 +222,10 @@ private fun MapContent(
                     }
                 },
                 onCompassClick = {
-                    viewModel.onEvent(MapEvent.ResetCompass(cameraState.position.target))
+                    viewModel.onEvent(MapEvent.ResetCompass(
+                        location = cameraState.position.target,
+                        zoom = cameraState.position.zoom
+                    ))
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)

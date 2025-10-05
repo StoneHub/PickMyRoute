@@ -35,5 +35,5 @@ sealed class MapEvent {
     data object ToggleDestinationInput : MapEvent()
     data object DismissError : MapEvent()
     data class AnimateToLocation(val location: LatLng) : MapEvent()
-    data class ResetCompass(val location: LatLng) : MapEvent()
+    data class ResetCompass(val location: LatLng, val zoom: Float) : MapEvent()
 }
