@@ -62,9 +62,9 @@
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
 
-# Keep data models (adjust package name as needed)
--keep class com.stonecode.mapsroutepicker.data.remote.dto.** { *; }
--keep class com.stonecode.mapsroutepicker.domain.model.** { *; }
+# Keep data classes (used for Retrofit/Gson)
+-keep class com.stonecode.pickmyroute.data.remote.dto.** { *; }
+-keep class com.stonecode.pickmyroute.domain.model.** { *; }
 
 # Google Play Services
 -keep class com.google.android.gms.** { *; }
@@ -102,4 +102,4 @@
 -dontwarn androidx.compose.**
 
 # Keep application class
--keep class com.stonecode.mapsroutepicker.MapsRoutePickerApp { *; }
+-keep class com.stonecode.pickmyroute.MapsRoutePickerApp { *; }

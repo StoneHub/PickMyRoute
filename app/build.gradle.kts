@@ -6,14 +6,15 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)
 }
 
 android {
-    namespace = "com.stonecode.mapsroutepicker"
+    namespace = "com.stonecode.pickmyroute"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.stonecode.mapsroutepicker"
+        applicationId = "com.stonecode.pickmyroute"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -39,12 +40,12 @@ android {
             throw GradleException(
                 """
                 ❌ MAPS_API_KEY not found in local.properties!
-                
+
                 To fix this:
                 1. Copy local.properties.example to local.properties
                 2. Add your Google Maps API key to local.properties
                 3. See docs/GOOGLE_CLOUD_SETUP.md for instructions
-                
+
                 ⚠️  NEVER commit local.properties to git!
                 """.trimIndent()
             )
@@ -83,17 +84,10 @@ android {
 }
 
 dependencies {
-    constraints {
-        implementation("com.squareup:javapoet:1.13.0") {
-            because("Hilt's processors require ClassName.canonicalName() from newer JavaPoet")
-        }
-    }
-
     // Core Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
-    implementation(libs.gms.play.services.maps)
 
     // Jetpack Compose
     val composeBom = platform(libs.compose.bom)
@@ -138,6 +132,11 @@ dependencies {
     // Lifecycle (keep existing)
     implementation(libs.androidx.lifecycle.livedata.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
+
+    // Firebase (BOM manages versions)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.crashlytics)
 
     // Testing
     testImplementation(libs.junit)

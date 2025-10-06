@@ -775,7 +775,7 @@ ui/map/
 **Security:**
 - [ ] Create production API key with restrictions
 - [ ] Add SHA-1 fingerprint restriction
-- [ ] Add package name restriction (`com.stonecode.mapsroutepicker`)
+- [ ] Add package name restriction (`com.stonecode.pickmyroute`)
 - [ ] Restrict APIs to only what's needed
 - [ ] Remove debug logging
 - [ ] Enable ProGuard/R8 obfuscation
@@ -814,7 +814,7 @@ Status: Unrestricted (works for testing)
 2. Restrict key via gcloud:
    ```bash
    gcloud alpha services api-keys update [KEY_NAME] \
-     --allowed-application=sha1_fingerprint=[SHA1],package_name=com.stonecode.mapsroutepicker \
+     --allowed-application=sha1_fingerprint=[SHA1],package_name=com.stonecode.pickmyroute \
      --api-target=service=maps-android-backend.googleapis.com \
      --api-target=service=directions-backend.googleapis.com
    ```

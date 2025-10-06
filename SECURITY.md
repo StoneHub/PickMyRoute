@@ -40,7 +40,7 @@ We take security vulnerabilities seriously. If you discover a security issue, pl
 1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 2. Click on your API key
 3. Under "Application restrictions", select "Android apps"
-4. Add your package name: `com.stonecode.mapsroutepicker`
+4. Add your package name: `com.stonecode.pickmyroute`
 5. Add your SHA-1 certificate fingerprint (get it via Android Studio or `keytool`)
 6. Under "API restrictions", select "Restrict key"
 7. Enable only:
