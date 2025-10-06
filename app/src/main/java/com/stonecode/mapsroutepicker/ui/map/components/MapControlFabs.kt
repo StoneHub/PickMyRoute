@@ -23,6 +23,7 @@ fun MapControlFabs(
     cameraPositionState: CameraPositionState,
     onMyLocationClick: () -> Unit,
     onCompassClick: () -> Unit,
+    isNavigating: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -30,21 +31,23 @@ fun MapControlFabs(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.End
     ) {
-        // Compass/Navigation button - Reset bearing to north
-        FloatingActionButton(
-            onClick = onCompassClick,
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.size(56.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Navigation,
-                contentDescription = "Reset compass to north",
-                modifier = Modifier.size(28.dp)
-            )
+        // Compass/Navigation button - Reset bearing to north (HIDDEN during navigation)
+        if (!isNavigating) {
+            FloatingActionButton(
+                onClick = onCompassClick,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Navigation,
+                    contentDescription = "Reset compass to north",
+                    modifier = Modifier.size(28.dp)
+                )
+            }
         }
 
-        // My Location button - Center on user
+        // My Location button - Center on user (always visible)
         FloatingActionButton(
             onClick = onMyLocationClick,
             containerColor = MaterialTheme.colorScheme.primaryContainer,

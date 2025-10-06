@@ -80,6 +80,10 @@ class MapViewModel @Inject constructor(
             is MapEvent.ExpandSearchBar -> expandSearchBar()
             is MapEvent.CollapseSearchBar -> collapseSearchBar()
             is MapEvent.ClearSearch -> clearSearch()
+            // Navigation events
+            is MapEvent.StartNavigation -> startNavigation()
+            is MapEvent.StopNavigation -> stopNavigation()
+            is MapEvent.UpdateDeviceBearing -> updateDeviceBearing(event.bearing)
         }
     }
 
@@ -335,6 +339,9 @@ class MapViewModel @Inject constructor(
         if (_state.value.destination != null && _state.value.route == null) {
             calculateRoute()
         }
+
+        // Don't automatically move camera in navigation mode - let user pan freely
+        // Camera will only recenter when My Location button is explicitly tapped
     }
 
     private fun dismissError() {
@@ -344,6 +351,27 @@ class MapViewModel @Inject constructor(
     private fun animateToLocation(location: LatLng) {
         Log.d("MapsRoutePicker", "📍 Animating to location: $location")
 
+        // In navigation mode, use a fast 300ms animation (not instant, not slow)
+        if (_state.value.isNavigating) {
+            val cameraPosition = com.google.android.gms.maps.model.CameraPosition.Builder()
+                .target(location)
+                .zoom(18f)
+                .bearing(_state.value.deviceBearing)
+                .tilt(_state.value.cameraTilt)
+                .build()
+
+            val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(cameraPosition)
+            _state.update { it.copy(cameraAnimationTarget = cameraUpdate) }
+
+            // Clear after a short animation
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(400)
+                _state.update { it.copy(cameraAnimationTarget = null) }
+            }
+            return
+        }
+
+        // In planning mode, animate smoothly
         val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(location, 16f)
         _state.update { it.copy(cameraAnimationTarget = cameraUpdate) }
 
@@ -374,5 +402,70 @@ class MapViewModel @Inject constructor(
             kotlinx.coroutines.delay(1000)
             _state.update { it.copy(cameraAnimationTarget = null) }
         }
+    }
+
+    // Navigation mode methods
+
+    private fun startNavigation() {
+        Log.d("MapViewModel", "🚗 Starting navigation mode")
+
+        // Enter navigation mode with tilted camera (45 degrees for 3D view)
+        _state.update { it.copy(
+            isNavigating = true,
+            cameraTilt = 45f
+        )}
+
+        // Immediately update camera to navigation view
+        _state.value.currentLocation?.let { location ->
+            updateNavigationCamera(location, _state.value.deviceBearing)
+        }
+    }
+
+    private fun stopNavigation() {
+        Log.d("MapViewModel", "🛑 Stopping navigation mode")
+
+        // Exit navigation mode, reset to flat top-down view
+        _state.update { it.copy(
+            isNavigating = false,
+            cameraTilt = 0f,
+            deviceBearing = 0f
+        )}
+
+        // Reset camera to north-up flat view
+        _state.value.currentLocation?.let { location ->
+            val cameraPosition = com.google.android.gms.maps.model.CameraPosition.Builder()
+                .target(location)
+                .zoom(15f)
+                .bearing(0f)
+                .tilt(0f)
+                .build()
+
+            val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(cameraPosition)
+            _state.update { it.copy(cameraAnimationTarget = cameraUpdate) }
+        }
+    }
+
+    private fun updateDeviceBearing(bearing: Float) {
+        // Only update bearing if in navigation mode
+        if (!_state.value.isNavigating) return
+
+        // Just update the bearing state, DON'T move the camera
+        // Camera will only move when user explicitly taps My Location button
+        _state.update { it.copy(deviceBearing = bearing) }
+    }
+
+    /**
+     * Update camera to follow user location with bearing and tilt for navigation mode
+     */
+    private fun updateNavigationCamera(location: LatLng, bearing: Float) {
+        val cameraPosition = com.google.android.gms.maps.model.CameraPosition.Builder()
+            .target(location)
+            .zoom(18f) // Closer zoom for navigation
+            .bearing(bearing) // Rotate map to match phone orientation
+            .tilt(_state.value.cameraTilt) // 45 degree angle for 3D view
+            .build()
+
+        val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(cameraPosition)
+        _state.update { it.copy(cameraAnimationTarget = cameraUpdate) }
     }
 }

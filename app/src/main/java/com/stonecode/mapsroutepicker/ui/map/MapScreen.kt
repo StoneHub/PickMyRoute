@@ -10,7 +10,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -26,6 +28,7 @@ import com.stonecode.mapsroutepicker.ui.map.components.WaypointTimeline
 import com.stonecode.mapsroutepicker.ui.map.components.MapControlFabs
 import com.stonecode.mapsroutepicker.ui.map.components.SwipeableRouteInfoCard
 import com.stonecode.mapsroutepicker.ui.map.components.PlaceSearchBar
+import com.stonecode.mapsroutepicker.ui.map.components.rememberDeviceBearing
 import com.stonecode.mapsroutepicker.ui.map.components.getWaypointColor
 import com.stonecode.mapsroutepicker.util.PolylineDecoder
 import kotlinx.coroutines.launch
@@ -149,6 +152,18 @@ private fun MapContent(
     var cameraPositionState: CameraPositionState? by remember { mutableStateOf(null) }
     val scope = rememberCoroutineScope()
 
+    // Track route card height dynamically for better waypoint timeline spacing
+    var routeCardHeight by remember { mutableStateOf(0) }
+    var searchBarHeight by remember { mutableStateOf(0) }
+
+    // Track device bearing when in navigation mode
+    val deviceBearing = rememberDeviceBearing(
+        isEnabled = state.isNavigating,
+        onBearingChanged = { bearing ->
+            viewModel.onEvent(MapEvent.UpdateDeviceBearing(bearing))
+        }
+    )
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Main Google Map
         GoogleMapView(
@@ -193,6 +208,9 @@ private fun MapContent(
                     .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 16.dp)
                     .fillMaxWidth()
+                    .onSizeChanged { size ->
+                        searchBarHeight = size.height
+                    }
             )
         }
 
@@ -206,22 +224,45 @@ private fun MapContent(
                     onClose = {
                         viewModel.onEvent(MapEvent.ClearRoute)
                     },
+                    onStartNavigation = {
+                        viewModel.onEvent(MapEvent.StartNavigation)
+                    },
+                    isNavigating = state.isNavigating,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .statusBarsPadding()
                         .padding(start = 16.dp, top = topPadding, end = 16.dp)
                         .fillMaxWidth()
+                        .onSizeChanged { size ->
+                            routeCardHeight = size.height
+                        }
                 )
             }
         }
 
-        // Waypoint timeline - adjust position based on what's above it
+        // Waypoint timeline - programmatically calculate position to avoid overlap
         if (state.waypoints.isNotEmpty()) {
+            // Calculate top padding based on actual measured heights
             val topPadding = when {
-                state.destination == null && state.route != null -> 200.dp  // Below search + route card
-                state.destination == null -> 88.dp                          // Below search bar only
-                state.route != null -> 140.dp                               // Below route card only (no search) - increased spacing
-                else -> 16.dp                                               // Just top padding
+                state.destination == null && state.route != null -> {
+                    // Below search + route card: use measured heights + margins
+                    with(LocalDensity.current) {
+                        (searchBarHeight + routeCardHeight).toDp() + 24.dp  // 24dp for spacing between cards
+                    }
+                }
+                state.destination == null -> {
+                    // Below search bar only
+                    with(LocalDensity.current) {
+                        searchBarHeight.toDp() + 16.dp
+                    }
+                }
+                state.route != null -> {
+                    // Below route card only (no search)
+                    with(LocalDensity.current) {
+                        routeCardHeight.toDp() + 24.dp  // 24dp spacing between route card and waypoint timeline
+                    }
+                }
+                else -> 16.dp  // Just top padding
             }
 
             WaypointTimeline(
@@ -246,6 +287,7 @@ private fun MapContent(
                         }
                     }
                 },
+                isNavigating = state.isNavigating,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
@@ -272,11 +314,33 @@ private fun MapContent(
                         zoom = cameraState.position.zoom
                     ))
                 },
+                isNavigating = state.isNavigating,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
                     .padding(16.dp)
             )
+        }
+
+        // Exit Navigation FAB - shown only during navigation
+        if (state.isNavigating) {
+            FloatingActionButton(
+                onClick = {
+                    viewModel.onEvent(MapEvent.StopNavigation)
+                },
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .navigationBarsPadding()
+                    .padding(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Exit navigation",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
 
         // Loading indicator
@@ -335,12 +399,21 @@ private fun GoogleMapView(
     }
 
     // Listen for camera animation requests from ViewModel
-    LaunchedEffect(state.cameraAnimationTarget) {
+    LaunchedEffect(state.cameraAnimationTarget, state.isNavigating) {
         state.cameraAnimationTarget?.let { target ->
-            cameraPositionState.animate(
-                update = target,
-                durationMs = 800
-            )
+            if (state.isNavigating) {
+                // In navigation mode, use 300ms animation instead of instant move
+                cameraPositionState.animate(
+                    update = target,
+                    durationMs = 300
+                )
+            } else {
+                // In planning mode, animate smoothly
+                cameraPositionState.animate(
+                    update = target,
+                    durationMs = 800
+                )
+            }
         }
     }
 

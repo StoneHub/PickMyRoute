@@ -1,5 +1,6 @@
 package com.stonecode.mapsroutepicker.ui.map.components
 
+import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -9,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.stonecode.mapsroutepicker.domain.model.Waypoint
@@ -22,7 +24,8 @@ import com.stonecode.mapsroutepicker.domain.model.Waypoint
 fun WaypointTimeline(
     waypoints: List<Waypoint>,
     onRemoveWaypoint: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isNavigating: Boolean = false
 ) {
     val sortedWaypoints = waypoints.sortedBy { it.order }
     val scrollState = rememberScrollState()
@@ -52,7 +55,8 @@ fun WaypointTimeline(
                 WaypointBubble(
                     label = ('A' + index).toString(),
                     color = getWaypointColor(index),
-                    onClick = { onRemoveWaypoint(waypoint.id) }
+                    onClick = { onRemoveWaypoint(waypoint.id) },
+                    isNavigating = isNavigating
                 )
             }
 
@@ -70,10 +74,24 @@ private fun WaypointBubble(
     label: String,
     color: Color,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isNavigating: Boolean = false
 ) {
+    val context = LocalContext.current
+
     FilledTonalButton(
-        onClick = onClick,
+        onClick = {
+            if (isNavigating) {
+                // Show toast telling user to exit navigation mode first
+                Toast.makeText(
+                    context,
+                    "❌ Exit navigation mode to edit waypoints",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                onClick()
+            }
+        },
         modifier = modifier.size(48.dp),
         colors = ButtonDefaults.filledTonalButtonColors(
             containerColor = color,

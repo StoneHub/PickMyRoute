@@ -45,6 +45,8 @@ import kotlin.math.roundToInt
 fun SwipeableRouteInfoCard(
     route: Route,
     onClose: () -> Unit,
+    onStartNavigation: () -> Unit = {},
+    isNavigating: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var dragOffsetX by remember { mutableStateOf(0f) }
@@ -235,8 +237,25 @@ fun SwipeableRouteInfoCard(
                         }
                     }
 
-                    // Swipe hint animated ripple icon (right → left)
-                    SwipeRippleIndicator()
+                    // Show Start Navigation button or navigation indicator based on state
+                    if (isNavigating) {
+                        // Show animated chevrons when navigating
+                        SwipeRippleIndicator()
+                    } else {
+                        // Show Start Navigation button with animated right chevron
+                        FilledTonalButton(
+                            onClick = onStartNavigation,
+                            modifier = Modifier.height(40.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        ) {
+                            Text("Start", fontWeight = FontWeight.Medium)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            StartNavigationChevron()
+                        }
+                    }
                 }
             }
         }
@@ -244,8 +263,80 @@ fun SwipeableRouteInfoCard(
 }
 
 /**
+ * Animated right-pointing chevron indicator for Start Navigation button
+ * Mirrors the left-pointing swipe indicator but points right
+ */
+@Composable
+private fun StartNavigationChevron() {
+    val rippleProgress = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            rippleProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 1500)
+            )
+            rippleProgress.snapTo(0f)
+        }
+    }
+
+    val surfaceColor = MaterialTheme.colorScheme.onPrimaryContainer
+
+    Canvas(
+        modifier = Modifier
+            .width(32.dp)
+            .height(18.dp)
+    ) {
+        val w = size.width
+        val h = size.height
+        val centerY = h / 2f
+
+        // Chevron dimensions
+        val chevronWidth = w * 0.18f
+        val chevronHeight = h * 0.7f
+        val spacing = w * 0.15f
+        val strokeWidth = h * 0.14f
+
+        // Draw 3 chevrons (>>>) from left to right
+        repeat(3) { chevronIndex ->
+            val chevronX = w * 0.2f + (chevronIndex * spacing)
+
+            // Calculate ripple brightness for this chevron
+            val rippleX = w * rippleProgress.value
+            val distanceToRipple = abs(chevronX - rippleX)
+            val rippleRadius = w * 0.25f
+            val brightness = (1f - (distanceToRipple / rippleRadius).coerceIn(0f, 1f))
+
+            // Base alpha for chevron (increases from left to right)
+            val baseAlpha = 0.5f + (chevronIndex * 0.15f)
+
+            // Combine base alpha with ripple brightness
+            val finalAlpha = (baseAlpha + brightness * 0.4f).coerceIn(0f, 1f)
+
+            // Draw left line of chevron: >
+            drawLine(
+                color = surfaceColor.copy(alpha = finalAlpha),
+                start = Offset(chevronX, centerY - chevronHeight / 2f),
+                end = Offset(chevronX + chevronWidth, centerY),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+
+            // Draw right line of chevron: >
+            drawLine(
+                color = surfaceColor.copy(alpha = finalAlpha),
+                start = Offset(chevronX + chevronWidth, centerY),
+                end = Offset(chevronX, centerY + chevronHeight / 2f),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+/**
  * Animated ripple indicator showing swipe direction (right to left)
- * Three chevron arrows with pulses flowing through them
+ * Three chevron arrows with pulses flowing through them - shown during navigation
  */
 @Composable
 private fun SwipeRippleIndicator() {

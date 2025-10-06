@@ -24,7 +24,11 @@ data class MapState(
     val searchPredictions: List<PlacePrediction> = emptyList(),
     val isSearching: Boolean = false,
     val isSearchBarExpanded: Boolean = false,
-    val searchError: String? = null
+    val searchError: String? = null,
+    // Navigation mode
+    val isNavigating: Boolean = false,
+    val deviceBearing: Float = 0f,      // Phone's compass heading (0-360 degrees)
+    val cameraTilt: Float = 0f           // Camera tilt angle (0 = top-down, 45 = angled)
 )
 
 /**
@@ -49,4 +53,8 @@ sealed class MapEvent {
     data object ExpandSearchBar : MapEvent()
     data object CollapseSearchBar : MapEvent()
     data object ClearSearch : MapEvent()
+    // Navigation events
+    data object StartNavigation : MapEvent()
+    data object StopNavigation : MapEvent()
+    data class UpdateDeviceBearing(val bearing: Float) : MapEvent()
 }
