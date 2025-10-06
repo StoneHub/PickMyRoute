@@ -95,6 +95,11 @@ class MapViewModel @Inject constructor(
             return
         }
 
+        // Don't allow route editing during navigation mode
+        if (currentState.isNavigating) {
+            return
+        }
+
         when {
             // If no destination, set it
             currentState.destination == null -> {

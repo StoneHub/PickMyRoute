@@ -151,6 +151,7 @@ private fun MapContent(
 ) {
     var cameraPositionState: CameraPositionState? by remember { mutableStateOf(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // Track route card height dynamically for better waypoint timeline spacing
     var routeCardHeight by remember { mutableStateOf(0) }
@@ -169,6 +170,14 @@ private fun MapContent(
         GoogleMapView(
             state = state,
             onMapTapped = { location ->
+                if (state.isNavigating) {
+                    // Show toast when trying to edit during navigation
+                    Toast.makeText(
+                        context,
+                        "❌ Exit navigation mode to edit route",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
                 viewModel.onEvent(MapEvent.MapTapped(location))
             },
             onCameraStateReady = { cameraState ->
@@ -226,6 +235,9 @@ private fun MapContent(
                     },
                     onStartNavigation = {
                         viewModel.onEvent(MapEvent.StartNavigation)
+                    },
+                    onStopNavigation = {
+                        viewModel.onEvent(MapEvent.StopNavigation)
                     },
                     isNavigating = state.isNavigating,
                     modifier = Modifier
@@ -288,6 +300,7 @@ private fun MapContent(
                     }
                 },
                 isNavigating = state.isNavigating,
+                route = state.route,  // Pass route data for distance display
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
@@ -320,27 +333,6 @@ private fun MapContent(
                     .navigationBarsPadding()
                     .padding(16.dp)
             )
-        }
-
-        // Exit Navigation FAB - shown only during navigation
-        if (state.isNavigating) {
-            FloatingActionButton(
-                onClick = {
-                    viewModel.onEvent(MapEvent.StopNavigation)
-                },
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .navigationBarsPadding()
-                    .padding(16.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Exit navigation",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
         }
 
         // Loading indicator
@@ -467,11 +459,23 @@ private fun GoogleMapView(
                     width = 12f
                 )
             } else {
-                // Multi-colored route segments for each waypoint
-                route.legs.forEachIndexed { index, leg ->
+                // Multi-colored route segments matching destination waypoint
+                // Leg 0: current location → waypoint A (use waypoint A's color)
+                // Leg 1: waypoint A → waypoint B (use waypoint B's color)
+                // Last leg: last waypoint → destination (use destination red color)
+                route.legs.forEachIndexed { legIndex, leg ->
                     leg.steps.forEach { step ->
                         val segmentPoints = PolylineDecoder.decode(step.polyline)
-                        val segmentColor = getWaypointColor(index)
+
+                        // Color matches the destination of this leg
+                        val segmentColor = if (legIndex < state.waypoints.size) {
+                            // This leg goes TO a waypoint, use that waypoint's color
+                            getWaypointColor(legIndex)
+                        } else {
+                            // Final leg goes to destination, use red
+                            Color(0xFFE53935)
+                        }
+
                         Polyline(
                             points = segmentPoints,
                             color = segmentColor,

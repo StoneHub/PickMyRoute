@@ -46,6 +46,7 @@ fun SwipeableRouteInfoCard(
     route: Route,
     onClose: () -> Unit,
     onStartNavigation: () -> Unit = {},
+    onStopNavigation: () -> Unit = {},
     isNavigating: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -92,7 +93,8 @@ fun SwipeableRouteInfoCard(
     Box(
         modifier = modifier
     ) {
-        // Background close button (shows as you drag or when revealed)
+        // Background button (shows as you drag or when revealed)
+        // Shows "Exit Nav" in nav mode, "Cancel Trip" in planning mode
         if (isRevealed || dragOffsetX < -50f || bounceOffset.value < -10f) {
             val buttonAlpha = when {
                 dragOffsetX < 0f -> (abs(dragOffsetX) / 200f).coerceIn(0f, 1f)
@@ -104,7 +106,13 @@ fun SwipeableRouteInfoCard(
             FilledTonalButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onClose()
+                    if (isNavigating) {
+                        // Exit navigation mode and return to planning
+                        onStopNavigation()
+                    } else {
+                        // Cancel the entire trip
+                        onClose()
+                    }
                     isRevealed = false
                 },
                 modifier = Modifier
@@ -119,7 +127,7 @@ fun SwipeableRouteInfoCard(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Close route",
+                    contentDescription = if (isNavigating) "Exit navigation" else "Cancel trip",
                     modifier = Modifier.size(40.dp)
                 )
             }
