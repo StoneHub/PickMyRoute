@@ -31,7 +31,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.stonecode.pickmyroute.domain.model.Route
 import com.stonecode.pickmyroute.domain.model.RouteLeg
-import com.stonecode.pickmyroute.ui.theme.MapsRoutePickerTheme
+import com.stonecode.pickmyroute.ui.theme.PickMyRouteTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -420,7 +420,7 @@ private fun SwipeRippleIndicator() {
 @Preview(name = "Route Card - Light", showBackground = true)
 @Composable
 private fun SwipeableRouteInfoCardPreview() {
-    MapsRoutePickerTheme {
+    PickMyRouteTheme {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -437,7 +437,7 @@ private fun SwipeableRouteInfoCardPreview() {
 @Preview(name = "Route Card - Dark", showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun SwipeableRouteInfoCardPreviewDark() {
-    MapsRoutePickerTheme {
+    PickMyRouteTheme {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -454,7 +454,7 @@ private fun SwipeableRouteInfoCardPreviewDark() {
 @Preview(name = "Long Route", showBackground = true)
 @Composable
 private fun SwipeableRouteInfoCardPreviewLong() {
-    MapsRoutePickerTheme {
+    PickMyRouteTheme {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

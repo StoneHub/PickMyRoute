@@ -8,7 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.stonecode.pickmyroute.ui.map.MapScreen
-import com.stonecode.pickmyroute.ui.theme.MapsRoutePickerTheme
+import com.stonecode.pickmyroute.ui.theme.PickMyRouteTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -17,7 +17,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MapsRoutePickerTheme {
+            PickMyRouteTheme {
                 MapScreen()
             }
         }
@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
 @Preview(showBackground = true)
 @Composable
 fun DefaultPreview() {
-    MapsRoutePickerTheme {
+    PickMyRouteTheme {
         Text("Maps Route Picker")
     }
 }

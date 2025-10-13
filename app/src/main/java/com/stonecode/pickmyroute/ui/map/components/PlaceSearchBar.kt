@@ -26,7 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stonecode.pickmyroute.domain.model.PlacePrediction
-import com.stonecode.pickmyroute.ui.theme.MapsRoutePickerTheme
+import com.stonecode.pickmyroute.ui.theme.PickMyRouteTheme
 
 /**
  * Google Maps-style search bar with autocomplete suggestions
@@ -233,7 +233,7 @@ private fun SearchResultItem(
 @Preview(name = "Search Bar - Empty", showBackground = true)
 @Composable
 private fun PlaceSearchBarPreviewEmpty() {
-    MapsRoutePickerTheme {
+    PickMyRouteTheme {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -256,7 +256,7 @@ private fun PlaceSearchBarPreviewEmpty() {
 @Preview(name = "Search Bar - Typing", showBackground = true)
 @Composable
 private fun PlaceSearchBarPreviewTyping() {
-    MapsRoutePickerTheme {
+    PickMyRouteTheme {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -279,7 +279,7 @@ private fun PlaceSearchBarPreviewTyping() {
 @Preview(name = "Search Bar - With Results", showBackground = true)
 @Composable
 private fun PlaceSearchBarPreviewWithResults() {
-    MapsRoutePickerTheme {
+    PickMyRouteTheme {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -321,7 +321,7 @@ private fun PlaceSearchBarPreviewWithResults() {
 @Preview(name = "Search Bar - Dark Mode", showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PlaceSearchBarPreviewDark() {
-    MapsRoutePickerTheme {
+    PickMyRouteTheme {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

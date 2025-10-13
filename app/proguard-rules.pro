@@ -102,4 +102,4 @@
 -dontwarn androidx.compose.**
 
 # Keep application class
--keep class com.stonecode.pickmyroute.MapsRoutePickerApp { *; }
+-keep class com.stonecode.pickmyroute.PickMyRouteApp { *; }

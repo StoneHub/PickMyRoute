@@ -20,7 +20,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun MapsRoutePickerTheme(
+fun PickMyRouteTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
