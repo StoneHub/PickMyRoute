@@ -51,11 +51,11 @@ private fun formatDistance(meters: Double): String {
         meters >= 1000 -> String.format("%.1f km", meters / 1000.0)
         meters >= 100 -> "${meters.toInt()} m"
         meters >= 20 -> {
-            val rounded = (meters / 5.0).toInt() * 5
-            "${rounded} m"
+            // Round to nearest 5: add 2.5 before dividing to get proper rounding
+            val rounded = ((meters + 2.5) / 5.0).toInt() * 5
+            "$rounded m"
         }
         meters < 15 -> "Now"
         else -> "${meters.toInt()} m"
     }
 }
-

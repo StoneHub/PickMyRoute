@@ -29,7 +29,7 @@ class NavigationHelpersTest {
     fun distanceFormatting_roundedMeters() {
         // Test 20-99 meters rounded to nearest 5
         assertEquals("85 m", formatDistance(83.0))
-        assertEquals("25 m", formatDistance(22.0))
+        assertEquals("20 m", formatDistance(22.0))
         assertEquals("50 m", formatDistance(48.0))
         assertEquals("95 m", formatDistance(97.0))
     }
@@ -73,37 +73,6 @@ class NavigationHelpersTest {
         // - Start with isOffRoute = true
         // - Simulate 2 consecutive location updates with distance < 30m
         // - Assert onRouteStrike reaches 2 and isOffRoute becomes false
-    }
-
-    @Test
-    fun snapping_acceptsNearbyPoint() {
-        // TODO: Test polyline snapping logic
-        // - Create a simple straight polyline (2-3 points)
-        // - Test device location within 35m threshold
-        // - Assert snap succeeds and returns projected point
-    }
-
-    @Test
-    fun snapping_rejectsDistantPoint() {
-        // TODO: Test snapping rejection
-        // - Create a polyline
-        // - Test device location > 35m away
-        // - Assert snap returns null for snapped point
-    }
-
-    @Test
-    fun emissionThrottling_distanceChange() {
-        // TODO: Test emission throttling logic
-        // - Simulate distance changes < 3m
-        // - Assert emission is suppressed
-        // - Simulate distance change >= 3m
-        // - Assert emission occurs
-    }
-
-    @Test
-    fun emissionThrottling_stepChange() {
-        // TODO: Test that step index change always triggers emission
-        // regardless of distance delta
     }
 
     // Helper function matching the one in InstructionBanner.kt
