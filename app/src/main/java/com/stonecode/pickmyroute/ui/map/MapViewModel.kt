@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.maps.model.LatLng
 import com.stonecode.pickmyroute.domain.model.Waypoint
+import com.stonecode.pickmyroute.domain.model.NavigationStep
 import com.stonecode.pickmyroute.domain.repository.LocationRepository
 import com.stonecode.pickmyroute.domain.repository.PlacesRepository
 import com.stonecode.pickmyroute.domain.repository.RoutingRepository
+import com.stonecode.pickmyroute.util.PolylineDecoder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -21,6 +23,8 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.abs
+import kotlin.math.min
 
 /**
  * ViewModel for the map screen
@@ -39,6 +43,42 @@ class MapViewModel @Inject constructor(
 
     // Separate flow for search query to enable debouncing
     private val searchQueryFlow = MutableStateFlow("")
+
+    // === Phase 1 Driving Mode: Internal navigation state ===
+
+    /** Flattened list of all steps across all legs for quick indexing */
+    private var flattenedSteps: List<StepRef> = emptyList()
+
+    /** Cache of decoded polylines keyed by global step index */
+    private val decodedPolylines = mutableMapOf<Int, List<LatLng>>()
+
+    /** Off-route detection strike counters */
+    private var offRouteStrike = 0
+    private var onRouteStrike = 0
+
+    /** Last emitted distance for throttling */
+    private var previousEmittedDistance: Double? = null
+
+    /** Navigation tunables - centralized for easy adjustment */
+    private object NavParams {
+        const val snapThresholdMeters = 35.0
+        const val offRouteEnterMeters = 45.0
+        const val offRouteExitMeters = 30.0
+        const val offRouteEnterStrikes = 3
+        const val offRouteExitStrikes = 2
+        const val advanceDistanceMeters = 12.0
+        const val maneuverNowThreshold = 15.0
+        const val distanceEmissionDelta = 3.0
+    }
+
+    /** Internal step reference with cumulative distance tracking */
+    private data class StepRef(
+        val globalIndex: Int,
+        val legIndex: Int,
+        val stepIndexInLeg: Int,
+        val step: NavigationStep,
+        val cumulativeMetersBefore: Int
+    )
 
     init {
         // Location updates will start when permission is granted
@@ -211,6 +251,11 @@ class MapViewModel @Inject constructor(
                     destination = currentState.destination!!,
                     waypoints = currentState.waypoints
                 )
+
+                // Flatten steps for navigation (Phase 1)
+                flattenedSteps = flattenSteps(route)
+                decodedPolylines.clear()
+
                 _state.update { it.copy(route = route, isLoading = false) }
 
             } catch (e: Exception) {
@@ -346,6 +391,11 @@ class MapViewModel @Inject constructor(
             calculateRoute()
         }
 
+        // Phase 1 Driving Mode: Update navigation progress
+        if (_state.value.isNavigating && _state.value.route != null && flattenedSteps.isNotEmpty()) {
+            updateNavigationProgress(location)
+        }
+
         // Don't automatically move camera in navigation mode - let user pan freely
         // Camera will only recenter when My Location button is explicitly tapped
     }
@@ -410,15 +460,232 @@ class MapViewModel @Inject constructor(
         }
     }
 
-    // Navigation mode methods
+    // === Phase 1 Driving Mode: Navigation Helpers ===
+
+    /**
+     * Flatten route into a linear list of steps with cumulative distance tracking
+     */
+    private fun flattenSteps(route: com.stonecode.pickmyroute.domain.model.Route): List<StepRef> {
+        val refs = mutableListOf<StepRef>()
+        var globalIndex = 0
+        var cumulative = 0
+
+        route.legs.forEachIndexed { legIdx, leg ->
+            leg.steps.forEachIndexed { stepIdx, step ->
+                refs += StepRef(
+                    globalIndex = globalIndex++,
+                    legIndex = legIdx,
+                    stepIndexInLeg = stepIdx,
+                    step = step,
+                    cumulativeMetersBefore = cumulative
+                )
+                cumulative += step.distanceMeters
+            }
+        }
+
+        return refs
+    }
+
+    /**
+     * Lazy decode and cache polyline for a step
+     */
+    private fun getDecodedPolyline(globalIndex: Int, step: NavigationStep): List<LatLng> {
+        return decodedPolylines.getOrPut(globalIndex) {
+            PolylineDecoder.decode(step.polyline)
+        }
+    }
+
+    /**
+     * Calculate haversine distance between two points in meters
+     */
+    private fun distanceMeters(a: LatLng, b: LatLng): Double {
+        val result = FloatArray(1)
+        android.location.Location.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude, result)
+        return result[0].toDouble()
+    }
+
+    /**
+     * Project point P onto line segment AB
+     * Returns: Pair(projectedPoint, distanceFromPtoSegmentMeters)
+     */
+    private fun projectOntoSegment(p: LatLng, a: LatLng, b: LatLng): Pair<LatLng, Double> {
+        // Use lat/lng as approximate x/y (good for short distances)
+        val ax = a.latitude
+        val ay = a.longitude
+        val bx = b.latitude
+        val by = b.longitude
+        val px = p.latitude
+        val py = p.longitude
+
+        val vx = bx - ax
+        val vy = by - ay
+        val wx = px - ax
+        val wy = py - ay
+
+        val c1 = vx * wx + vy * wy
+        val c2 = vx * vx + vy * vy
+        val t = when {
+            c2 == 0.0 -> 0.0
+            else -> (c1 / c2).coerceIn(0.0, 1.0)
+        }
+
+        val projLat = ax + t * vx
+        val projLng = ay + t * vy
+        val projected = LatLng(projLat, projLng)
+        val dist = distanceMeters(p, projected)
+        return projected to dist
+    }
+
+    /**
+     * Snap device location to a step's polyline
+     * Returns: Pair(snappedPoint or null if too far, distance to polyline)
+     */
+    private fun snapToStep(globalIndex: Int, step: NavigationStep, deviceLocation: LatLng): Pair<LatLng?, Double> {
+        val poly = getDecodedPolyline(globalIndex, step)
+        if (poly.size < 2) return deviceLocation to Double.MAX_VALUE
+
+        var bestPoint: LatLng? = null
+        var bestDistance = Double.MAX_VALUE
+
+        for (i in 0 until poly.lastIndex) {
+            val a = poly[i]
+            val b = poly[i + 1]
+            val (proj, d) = projectOntoSegment(deviceLocation, a, b)
+            if (d < bestDistance) {
+                bestDistance = d
+                bestPoint = proj
+            }
+        }
+
+        return if (bestDistance <= NavParams.snapThresholdMeters) {
+            bestPoint to bestDistance
+        } else {
+            null to bestDistance
+        }
+    }
+
+    /**
+     * Calculate remaining distance from projected point to end of step
+     */
+    private fun remainingDistanceForStep(globalIndex: Int, stepRef: StepRef, projectedPoint: LatLng?): Double {
+        if (projectedPoint == null) return stepRef.step.distanceMeters.toDouble()
+
+        // Simple approximation: distance from projected point to step end location
+        val distFromProjToEnd = distanceMeters(projectedPoint, stepRef.step.endLocation)
+        return distFromProjToEnd.coerceAtLeast(0.0)
+    }
+
+    /**
+     * Check if should emit state update (throttling logic)
+     */
+    private fun shouldEmit(newStepIdx: Int?, newOffRoute: Boolean, newDistance: Double?): Boolean {
+        if (newStepIdx != _state.value.currentStepIndex) return true
+        if (newOffRoute != _state.value.isOffRoute) return true
+        val prev = previousEmittedDistance
+        if (prev == null && newDistance != null) return true
+        if (prev != null && newDistance != null && abs(prev - newDistance) >= NavParams.distanceEmissionDelta) return true
+        return false
+    }
+
+    /**
+     * Main navigation progress update - called on each location update during navigation
+     */
+    private fun updateNavigationProgress(deviceLocation: LatLng) {
+        val currentIdx = _state.value.currentStepIndex ?: 0
+        if (currentIdx >= flattenedSteps.size) return
+
+        var idx = currentIdx
+
+        // Advancement loop: skip through short/completed steps
+        while (idx < flattenedSteps.size) {
+            val stepRef = flattenedSteps[idx]
+            val (snapped, _) = snapToStep(stepRef.globalIndex, stepRef.step, deviceLocation)
+            val remaining = remainingDistanceForStep(stepRef.globalIndex, stepRef, snapped)
+
+            // Check if we should advance to next step
+            val distToEnd = distanceMeters(deviceLocation, stepRef.step.endLocation)
+            if (remaining < NavParams.advanceDistanceMeters || distToEnd < 15.0) {
+                Log.d("NAV_ADV", "Advancing from step $idx to ${idx + 1}")
+                idx += 1
+                continue
+            }
+            break
+        }
+
+        // Clamp to valid range
+        idx = idx.coerceIn(0, flattenedSteps.size - 1)
+
+        // Compute current step metrics
+        val currentStepRef = flattenedSteps[idx]
+        val (snappedPoint, distToPolyline) = snapToStep(currentStepRef.globalIndex, currentStepRef.step, deviceLocation)
+        val remainingDist = remainingDistanceForStep(currentStepRef.globalIndex, currentStepRef, snappedPoint)
+
+        // Off-route detection: check distance to current and next step
+        val distToCurrent = distToPolyline
+        val distToNext = if (idx + 1 < flattenedSteps.size) {
+            val nextStepRef = flattenedSteps[idx + 1]
+            snapToStep(nextStepRef.globalIndex, nextStepRef.step, deviceLocation).second
+        } else {
+            Double.MAX_VALUE
+        }
+
+        val minDist = min(distToCurrent, distToNext)
+
+        // Update strike counters
+        if (minDist > NavParams.offRouteEnterMeters) {
+            offRouteStrike += 1
+            onRouteStrike = 0
+        } else {
+            onRouteStrike += 1
+            offRouteStrike = 0
+        }
+
+        // Determine off-route state
+        val isOffRoute = offRouteStrike >= NavParams.offRouteEnterStrikes
+        val shouldClearOffRoute = onRouteStrike >= NavParams.offRouteExitStrikes && minDist < NavParams.offRouteExitMeters
+
+        val finalOffRoute = if (shouldClearOffRoute) false else isOffRoute
+
+        if (finalOffRoute) {
+            Log.d("NAV_OFF", "Off route detected: distance=$minDist strikes=$offRouteStrike")
+        }
+
+        // Get instruction text
+        val instruction = currentStepRef.step.instruction
+
+        // Throttled emission
+        if (shouldEmit(idx, finalOffRoute, remainingDist)) {
+            Log.d("NAV_STEP", "step=$idx rem=${remainingDist.toInt()} off=$finalOffRoute")
+
+            _state.update { it.copy(
+                currentStepIndex = idx,
+                distanceToNextManeuverMeters = remainingDist,
+                nextInstructionPrimary = instruction,
+                isOffRoute = finalOffRoute,
+                offRouteDistanceMeters = if (finalOffRoute) minDist else null
+            )}
+
+            previousEmittedDistance = remainingDist
+        }
+    }
 
     private fun startNavigation() {
         Log.d("MapViewModel", "🚗 Starting navigation mode")
 
+        // Reset navigation state
+        offRouteStrike = 0
+        onRouteStrike = 0
+        previousEmittedDistance = null
+
         // Enter navigation mode with tilted camera (45 degrees for 3D view)
         _state.update { it.copy(
             isNavigating = true,
-            cameraTilt = 45f
+            cameraTilt = 45f,
+            currentStepIndex = 0,
+            distanceToNextManeuverMeters = null,
+            nextInstructionPrimary = null,
+            isOffRoute = false,
+            offRouteDistanceMeters = null
         )}
 
         // Immediately update camera to navigation view
@@ -430,11 +697,21 @@ class MapViewModel @Inject constructor(
     private fun stopNavigation() {
         Log.d("MapViewModel", "🛑 Stopping navigation mode")
 
+        // Clear navigation state
+        offRouteStrike = 0
+        onRouteStrike = 0
+        previousEmittedDistance = null
+
         // Exit navigation mode, reset to flat top-down view
         _state.update { it.copy(
             isNavigating = false,
             cameraTilt = 0f,
-            deviceBearing = 0f
+            deviceBearing = 0f,
+            currentStepIndex = null,
+            distanceToNextManeuverMeters = null,
+            nextInstructionPrimary = null,
+            isOffRoute = false,
+            offRouteDistanceMeters = null
         )}
 
         // Reset camera to north-up flat view

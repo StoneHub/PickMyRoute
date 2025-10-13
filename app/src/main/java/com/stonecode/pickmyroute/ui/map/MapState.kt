@@ -28,7 +28,14 @@ data class MapState(
     // Navigation mode
     val isNavigating: Boolean = false,
     val deviceBearing: Float = 0f,      // Phone's compass heading (0-360 degrees)
-    val cameraTilt: Float = 0f           // Camera tilt angle (0 = top-down, 45 = angled)
+    val cameraTilt: Float = 0f,           // Camera tilt angle (0 = top-down, 45 = angled)
+
+    // Driving-mode progress fields (Phase 1)
+    val currentStepIndex: Int? = null,
+    val distanceToNextManeuverMeters: Double? = null,
+    val nextInstructionPrimary: String? = null,
+    val isOffRoute: Boolean = false,
+    val offRouteDistanceMeters: Double? = null
 )
 
 /**

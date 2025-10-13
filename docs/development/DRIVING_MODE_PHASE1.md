@@ -1,3 +1,4 @@
+// filepath: c:\Users\monro\AndroidStudioProjects\PickMyRoute\docs\development\DRIVING_MODE_PHASE1.md
 # Basic Driving Mode – Phase 1 Implementation Plan
 
 > Scope: Distance-to-next-maneuver banner + off-route visual alert (no rerouting, no TTS) using existing Google Directions-derived data models.
@@ -224,3 +225,390 @@ Next step: Implement tasks T1–T15; then empirical threshold tuning.
 
 ---
 **Decision Point:** Proceed to implementation (mark T1–T15) or adjust thresholds before coding.
+
+---
+
+## 19. Implementation snippets & exact integration points (concrete)
+Below are compact, copy-paste-friendly Kotlin examples showing where and how to implement the plan using the repo's existing types (`MapState`, `MapViewModel`, `MapScreen`, `NavigationStep`, `PolylineDecoder`). These are intentionally small, focused helpers and composables. Add them behind the ViewModel and Map UI code as suggested file locations.
+
+### 19.1 MapState additions
+File: `app/src/main/java/com/stonecode/pickmyroute/ui/map/MapState.kt`
+
+Add the following properties to the `MapState` data class (keep defaults for backward compat):
+
+```kotlin
+// ...existing code...
+    // Navigation mode
+    val isNavigating: Boolean = false,
+    val deviceBearing: Float = 0f,
+    val cameraTilt: Float = 0f,
+
+    // Driving-mode progress fields (Phase 1)
+    val currentStepIndex: Int? = null,
+    val distanceToNextManeuverMeters: Double? = null,
+    val nextInstructionPrimary: String? = null,
+    val isOffRoute: Boolean = false,
+    val offRouteDistanceMeters: Double? = null
+)
+// ...existing code...
+```
+
+Note: these fields are UI-only; the ViewModel will compute/emit them.
+
+### 19.2 Internal StepRef + decode cache
+File: `app/src/main/java/com/stonecode/pickmyroute/ui/map/MapViewModel.kt`
+
+Add at top (private to ViewModel):
+
+```kotlin
+// ...existing code...
+private data class StepRef(
+    val globalIndex: Int,
+    val legIndex: Int,
+    val stepIndexInLeg: Int,
+    val step: NavigationStep,
+    val cumulativeMetersBefore: Int
+)
+
+// Lazy cache of decoded polylines keyed by globalIndex
+private val decodedPolylines = mutableMapOf<Int, List<com.google.android.gms.maps.model.LatLng>>()
+
+// Tunables
+private object NavParams {
+    const val snapThresholdMeters = 35.0
+    const val offRouteEnterMeters = 45.0
+    const val offRouteExitMeters = 30.0
+    const val offRouteEnterStrikes = 3
+    const val offRouteExitStrikes = 2
+    const val advanceDistanceMeters = 12.0
+    const val maneuverNowThreshold = 15.0
+    const val distanceEmissionDelta = 3.0
+}
+// ...existing code...
+```
+
+### 19.3 Flatten steps helper
+Implement `flattenSteps(route)` which produces a List<StepRef> used for quick indexing:
+
+```kotlin
+private fun flattenSteps(route: com.stonecode.pickmyroute.domain.model.Route): List<StepRef> {
+    val refs = mutableListOf<StepRef>()
+    var globalIndex = 0
+    var cumulative = 0
+
+    route.legs.forEachIndexed { legIdx, leg ->
+        leg.steps.forEachIndexed { stepIdx, step ->
+            refs += StepRef(
+                globalIndex = globalIndex++,
+                legIndex = legIdx,
+                stepIndexInLeg = stepIdx,
+                step = step,
+                cumulativeMetersBefore = cumulative
+            )
+            cumulative += step.distanceMeters
+        }
+    }
+
+    return refs
+}
+```
+
+Call this from `calculateRoute()` after `route` is loaded and store it in a private field `flattenedSteps`.
+
+### 19.4 Polyline decode cache (lazy)
+When you need a decoded polyline for `globalIndex`:
+
+```kotlin
+private fun getDecodedPolyline(globalIndex: Int, step: NavigationStep): List<com.google.android.gms.maps.model.LatLng> {
+    return decodedPolylines.getOrPut(globalIndex) {
+        // step.polyline is the encoded polyline string
+        PolylineDecoder.decode(step.polyline)
+    }
+}
+```
+
+### 19.5 Geometry helpers (distance & projection)
+Create a small util within the ViewModel file or `util/NavigationUtils.kt`:
+
+```kotlin
+private fun distanceMeters(a: com.google.android.gms.maps.model.LatLng, b: com.google.android.gms.maps.model.LatLng): Double {
+    val result = FloatArray(1)
+    android.location.Location.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude, result)
+    return result[0].toDouble()
+}
+
+// Project point P onto segment AB, return Pair(projectedPoint, distanceFromPtoSegmentMeters)
+private fun projectOntoSegment(p: com.google.android.gms.maps.model.LatLng,
+                                 a: com.google.android.gms.maps.model.LatLng,
+                                 b: com.google.android.gms.maps.model.LatLng): Pair<com.google.android.gms.maps.model.LatLng, Double> {
+    // Convert to simple x/y using lat/lng degrees — this is approximate but sufficient for short distances
+    val ax = a.latitude; val ay = a.longitude
+    val bx = b.latitude; val by = b.longitude
+    val px = p.latitude; val py = p.longitude
+
+    val vx = bx - ax
+    val vy = by - ay
+    val wx = px - ax
+    val wy = py - ay
+
+    val c1 = vx*wx + vy*wy
+    val c2 = vx*vx + vy*vy
+    val t = when {
+        c2 == 0.0 -> 0.0
+        else -> (c1 / c2).coerceIn(0.0, 1.0)
+    }
+
+    val projLat = ax + t * vx
+    val projLng = ay + t * vy
+    val projected = com.google.android.gms.maps.model.LatLng(projLat, projLng)
+    val dist = distanceMeters(p, projected)
+    return projected to dist
+}
+```
+
+Notes: This projection uses lat/lng degrees as an equirectangular approximation. It's fast and good for short distances (< few km). If you need more accuracy, convert to meters with a proper easting/northing transform.
+
+### 19.6 snapToStep() (simplified)
+Use the decoded polyline and project onto each segment; accept the snap if min distance ≤ snapThresholdMeters.
+
+```kotlin
+private fun snapToStep(globalIndex: Int, step: NavigationStep, deviceLocation: com.google.android.gms.maps.model.LatLng): Pair<com.google.android.gms.maps.model.LatLng?, Double> {
+    val poly = getDecodedPolyline(globalIndex, step)
+    if (poly.size < 2) return deviceLocation to Double.MAX_VALUE
+
+    var bestPoint: com.google.android.gms.maps.model.LatLng? = null
+    var bestDistance = Double.MAX_VALUE
+
+    for (i in 0 until poly.lastIndex) {
+        val a = poly[i]
+        val b = poly[i + 1]
+        val (proj, d) = projectOntoSegment(deviceLocation, a, b)
+        if (d < bestDistance) {
+            bestDistance = d
+            bestPoint = proj
+        }
+    }
+
+    return if (bestDistance <= NavParams.snapThresholdMeters) bestPoint to bestDistance else deviceLocation to bestDistance
+}
+```
+
+### 19.7 Compute remaining distance within step
+If you have a snapped projected point, compute how many meters along the step that projection is from the step end using the decoded polyline cumulative distance:
+
+```kotlin
+private fun remainingDistanceForStep(globalIndex: Int, stepRef: StepRef, projectedPoint: com.google.android.gms.maps.model.LatLng?): Double {
+    if (projectedPoint == null) return stepRef.step.distanceMeters.toDouble()
+
+    val poly = getDecodedPolyline(globalIndex, stepRef.step)
+    // Walk the polyline and sum distances until we pass projectedPoint
+    var acc = 0.0
+    var found = false
+    for (i in 0 until poly.lastIndex) {
+        val a = poly[i]
+        val b = poly[i + 1]
+        // if projection lies on this segment (approx match) then add partial distance
+        val (_, dToSegment) = projectOntoSegment(projectedPoint, a, b)
+        val segLen = distanceMeters(a, b)
+        // Conservative approach: if projected point is within segLen of either endpoint treat as inside
+        if (dToSegment < 5.0) {
+            // partial distance from projected point to end of polyline
+            val distFromProjToEnd = distanceMeters(projectedPoint, stepRef.step.endLocation)
+            return distFromProjToEnd.coerceAtLeast(0.0)
+        }
+        acc += segLen
+    }
+    // Fallback
+    return stepRef.step.distanceMeters.toDouble()
+}
+```
+
+This is intentionally simple: for Phase 1 we just need a reasonable estimate of remaining meters; it will be refined later if necessary.
+
+### 19.8 Advancement loop (pseudocode)
+Call this after computing remaining on the current step. It may loop to skip zero-length or very short steps:
+
+```kotlin
+private fun maybeAdvanceWhileNeeded(deviceLocation: com.google.android.gms.maps.model.LatLng) {
+    var idx = currentStepIndex ?: 0
+    while (idx < flattenedSteps.size) {
+        val stepRef = flattenedSteps[idx]
+        val projected = snapToStep(stepRef.globalIndex, stepRef.step, deviceLocation).first
+        val remaining = remainingDistanceForStep(stepRef.globalIndex, stepRef, projected)
+        if (remaining < NavParams.advanceDistanceMeters || distanceMeters(deviceLocation, stepRef.step.endLocation) < 15.0) {
+            // advance
+            idx += 1
+            continue
+        }
+        break
+    }
+    // write idx back to currentStepIndex (and clamp to bounds)
+}
+```
+
+### 19.9 Off-route strike logic (store strikes in ViewModel)
+Keep two ints `offRouteStrike` and `onRouteStrike` as private ViewModel properties. On each update:
+
+```kotlin
+val minDist = min(distanceToCurrentStep, distanceToNextStep)
+if (minDist > NavParams.offRouteEnterMeters) {
+    offRouteStrike += 1
+    onRouteStrike = 0
+} else {
+    onRouteStrike += 1
+    offRouteStrike = 0
+}
+if (offRouteStrike >= NavParams.offRouteEnterStrikes) {
+    // mark off-route and emit state
+}
+if (onRouteStrike >= NavParams.offRouteExitStrikes && minDist < NavParams.offRouteExitMeters) {
+    // clear off-route
+}
+```
+
+Store the measured distance into `offRouteDistanceMeters` when entering off-route.
+
+### 19.10 Emission throttling
+Before calling `_state.update { ... }`, compare previous emitted values: step index, isOffRoute, and previousEmittedDistance. Only emit when any of those changed or the absolute difference of distance > `distanceEmissionDelta`.
+
+```kotlin
+private var previousEmittedDistance: Double? = null
+private fun shouldEmit(newStepIdx: Int?, newOffRoute: Boolean, newDistance: Double?): Boolean {
+    if (newStepIdx != _state.value.currentStepIndex) return true
+    if (newOffRoute != _state.value.isOffRoute) return true
+    val prev = previousEmittedDistance
+    if (prev == null && newDistance != null) return true
+    if (prev != null && newDistance != null && kotlin.math.abs(prev - newDistance) >= NavParams.distanceEmissionDelta) return true
+    return false
+}
+
+// When emitting:
+_state.update { it.copy(
+    currentStepIndex = newStepIdx,
+    distanceToNextManeuverMeters = newDistance,
+    nextInstructionPrimary = newInstruction,
+    isOffRoute = newOffRoute,
+    offRouteDistanceMeters = if (newOffRoute) newDistance else null
+)}
+previousEmittedDistance = newDistance
+```
+
+### 19.11 InstructionBanner composable (Phase 1)
+File: `app/src/main/java/com/stonecode/pickmyroute/ui/map/components/InstructionBanner.kt`
+
+```kotlin
+@Composable
+fun InstructionBanner(
+    state: MapState,
+    onStopNavigation: () -> Unit
+) {
+    if (!state.isNavigating || state.route == null) return
+
+    val distanceText = state.distanceToNextManeuverMeters?.let { formatDistance(it) } ?: ""
+
+    val bg = when {
+        state.isOffRoute -> MaterialTheme.colorScheme.errorContainer
+        (state.distanceToNextManeuverMeters ?: Double.MAX_VALUE) <= 15.0 -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+
+    Surface(
+        color = bg,
+        tonalElevation = 4.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(12.dp)) {
+            Text(text = distanceText, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(12.dp))
+            Text(text = if (state.isOffRoute) "Off route • ${state.offRouteDistanceMeters?.toInt() ?: ""} m" else state.nextInstructionPrimary ?: "", maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = onStopNavigation) {
+                Icon(Icons.Default.Close, contentDescription = "Stop")
+            }
+        }
+    }
+}
+```
+
+Integration: Call `InstructionBanner(state = state, onStopNavigation = { viewModel.onEvent(MapEvent.StopNavigation) })` inside `MapContent` in `MapScreen.kt`, positioned near the top (beneath `SwipeableRouteInfoCard`).
+
+### 19.12 Where to wire into `onLocationUpdate`
+In `MapViewModel.onLocationUpdate(location: LatLng)` (file `MapViewModel.kt`) add a guard when `state.isNavigating && state.route != null` and then run the flow:
+- Ensure `flattenedSteps` exists
+- Use `maybeAdvanceWhileNeeded(location)`
+- Compute snap and remaining for current step
+- Update strikes and decide off-route
+- Decide whether to emit `_state.update` via `shouldEmit(...)`
+
+Keep all new state private to the ViewModel except for the final `MapState` fields to be consumed by UI.
+
+### 19.13 Unit test skeletons
+File: `app/src/test/java/com/stonecode/pickmyroute/navigation/NavigationHelpersTest.kt`
+
+```kotlin
+class NavigationHelpersTest {
+
+    @Test
+    fun distanceFormatting_edges() {
+        assertEquals("1.5 km", formatDistance(1520.0))
+        assertEquals("85 m", formatDistance(83.0))
+        assertEquals("Now", formatDistance(12.0))
+    }
+
+    @Test
+    fun advancement_threshold() {
+        // build a fake route with a few steps and assert the ViewModel will advance when remaining < 12
+    }
+
+    @Test
+    fun offroute_strike_sequence() {
+        // simulate successive distances and assert strikes produce off-route after 3 bad updates
+    }
+}
+```
+
+Notes: Keep helpers pure and small so they are straightforward to unit test.
+
+### 19.14 Logging & debug
+Use the same log tags already present: `NAV_STEP`, `NAV_ADV`, `NAV_OFF`. Add a compact debug dump when entering/exiting off-route for easier manual testing.
+
+---
+
+## 20. Next steps (developer-facing)
+1. Copy the snippets above into the repo: add MapState fields (T1), create `InstructionBanner` composable (T11), implement flattening & decode cache (T3/T4), then wire `onLocationUpdate` (T9) to call the helpers (T5–T8).
+2. Add unit tests from 19.13 and run `gradlew.bat testDebugUnitTest` locally. I will wait for you to run the build/tests and paste any errors/stack traces if they occur.
+3. Tune thresholds after manual emulator runs and real-world driving tests.
+
+---
+
+## 21. Quick integration checklist (mapping to files)
+- MapState additions: `app/src/main/java/com/stonecode/pickmyroute/ui/map/MapState.kt` (T1)
+- StepRef + helpers + decoded cache: `app/src/main/java/com/stonecode/pickmyroute/ui/map/MapViewModel.kt` (T2–T6)
+- InstructionBanner: `app/src/main/java/com/stonecode/pickmyroute/ui/map/components/InstructionBanner.kt` (T11)
+- MapScreen integration: `app/src/main/java/com/stonecode/pickmyroute/ui/map/MapScreen.kt` (T12)
+- Utils: `app/src/main/java/com/stonecode/pickmyroute/util/NavigationUtils.kt` (optional)
+- Unit tests: `app/src/test/java/com/stonecode/pickmyroute/navigation/NavigationHelpersTest.kt` (T14)
+
+---
+
+## Requirements coverage
+- Add state fields: Done (documented) ✅
+- Flatten, decode cache, snapping: Provided code snippets and guidance ✅
+- Off-route strike system: Provided snippet & tunables ✅
+- Emission throttling: Provided ✅
+- InstructionBanner + integration: Provided snippet & where to place ✅
+
+---
+
+### Implementation assumptions
+- `NavigationStep.polyline` contains the encoded polyline (true per `NavigationStep.kt`).
+- `PolylineDecoder.decode` returns `List<LatLng>` (exists in `util/PolylineDecoder.kt`).
+- Use `android.location.Location.distanceBetween(...)` for meter calculations (available in Android SDK).
+
+If any of these assumptions are incorrect, tell me which file to inspect and I will adapt the snippets accordingly.
+
+---
+
+End of file.

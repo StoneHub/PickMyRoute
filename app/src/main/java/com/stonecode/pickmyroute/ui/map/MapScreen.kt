@@ -32,6 +32,7 @@ import com.stonecode.pickmyroute.ui.map.components.PlaceSearchBar
 import com.stonecode.pickmyroute.ui.map.components.rememberDeviceBearing
 import com.stonecode.pickmyroute.ui.map.components.getWaypointColor
 import com.stonecode.pickmyroute.util.PolylineDecoder
+import com.stonecode.pickmyroute.ui.map.components.InstructionBanner
 import kotlinx.coroutines.launch
 
 /**
@@ -250,6 +251,13 @@ private fun MapContent(
                             routeCardHeight = size.height
                         }
                 )
+
+                // Driving-mode instruction banner (Phase 1)
+                InstructionBanner(
+                    state = state,
+                    onStopNavigation = { viewModel.onEvent(MapEvent.StopNavigation) }
+                )
+
             }
         }
 
