@@ -9,6 +9,7 @@ import com.stonecode.pickmyroute.domain.repository.LocationRepository
 import com.stonecode.pickmyroute.domain.repository.PlacesRepository
 import com.stonecode.pickmyroute.domain.repository.RoutingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +26,7 @@ import javax.inject.Inject
  * ViewModel for the map screen
  * Manages route state, waypoints, search, and interactions with repositories
  */
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class MapViewModel @Inject constructor(
     private val locationRepository: LocationRepository,

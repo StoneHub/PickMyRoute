@@ -7,6 +7,8 @@ plugins {
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
+    // Apply Crashlytics Gradle plugin so crashlytics tasks (mapping file upload) are available
+    alias(libs.plugins.firebase.crashlytics)
 }
 
 android {

@@ -15,11 +15,11 @@ navigationFragmentKtx = "2.9.5"
 navigationUiKtx = "2.9.5"
 
 # Compose
-composeBom = "2024.09.03"
+composeBom = "2025.10.00"
 composeCompiler = "1.7.1"
-activityCompose = "1.9.2"
-navigationCompose = "2.8.2"
-lifecycleViewmodelCompose = "2.8.6"
+activityCompose = "1.11.0"
+navigationCompose = "2.9.5"
+lifecycleViewmodelCompose = "2.9.4"
 
 # Google Maps & Location
 playServicesMaps = "19.2.0"

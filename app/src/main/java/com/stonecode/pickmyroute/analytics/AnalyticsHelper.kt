@@ -2,7 +2,6 @@ package com.stonecode.pickmyroute.analytics
 
 import android.os.Bundle
 import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.analytics.ktx.logEvent
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,29 +21,32 @@ class AnalyticsHelper @Inject constructor(
         durationSeconds: Int,
         waypointCount: Int
     ) {
-        firebaseAnalytics.logEvent(AnalyticsEvents.ROUTE_CALCULATED) {
-            param(AnalyticsParams.ROUTE_DISTANCE_METERS, distanceMeters.toLong())
-            param(AnalyticsParams.ROUTE_DURATION_SECONDS, durationSeconds.toLong())
-            param(AnalyticsParams.WAYPOINT_COUNT, waypointCount.toLong())
+        val bundle = Bundle().apply {
+            putLong(AnalyticsParams.ROUTE_DISTANCE_METERS, distanceMeters.toLong())
+            putLong(AnalyticsParams.ROUTE_DURATION_SECONDS, durationSeconds.toLong())
+            putLong(AnalyticsParams.WAYPOINT_COUNT, waypointCount.toLong())
         }
+        firebaseAnalytics.logEvent(AnalyticsEvents.ROUTE_CALCULATED, bundle)
     }
 
     /**
      * Log a waypoint added event
      */
     fun logWaypointAdded(waypointCount: Int) {
-        firebaseAnalytics.logEvent(AnalyticsEvents.WAYPOINT_ADDED) {
-            param(AnalyticsParams.WAYPOINT_COUNT, waypointCount.toLong())
+        val bundle = Bundle().apply {
+            putLong(AnalyticsParams.WAYPOINT_COUNT, waypointCount.toLong())
         }
+        firebaseAnalytics.logEvent(AnalyticsEvents.WAYPOINT_ADDED, bundle)
     }
 
     /**
      * Log a waypoint removed event
      */
     fun logWaypointRemoved(waypointCount: Int) {
-        firebaseAnalytics.logEvent(AnalyticsEvents.WAYPOINT_REMOVED) {
-            param(AnalyticsParams.WAYPOINT_COUNT, waypointCount.toLong())
+        val bundle = Bundle().apply {
+            putLong(AnalyticsParams.WAYPOINT_COUNT, waypointCount.toLong())
         }
+        firebaseAnalytics.logEvent(AnalyticsEvents.WAYPOINT_REMOVED, bundle)
     }
 
     /**
@@ -61,38 +63,42 @@ class AnalyticsHelper @Inject constructor(
         distanceMeters: Int,
         durationSeconds: Int
     ) {
-        firebaseAnalytics.logEvent(AnalyticsEvents.NAVIGATION_STARTED) {
-            param(AnalyticsParams.ROUTE_DISTANCE_METERS, distanceMeters.toLong())
-            param(AnalyticsParams.ROUTE_DURATION_SECONDS, durationSeconds.toLong())
+        val bundle = Bundle().apply {
+            putLong(AnalyticsParams.ROUTE_DISTANCE_METERS, distanceMeters.toLong())
+            putLong(AnalyticsParams.ROUTE_DURATION_SECONDS, durationSeconds.toLong())
         }
+        firebaseAnalytics.logEvent(AnalyticsEvents.NAVIGATION_STARTED, bundle)
     }
 
     /**
      * Log navigation stopped
      */
     fun logNavigationStopped(navigationDurationSeconds: Long) {
-        firebaseAnalytics.logEvent(AnalyticsEvents.NAVIGATION_STOPPED) {
-            param(AnalyticsParams.NAVIGATION_DURATION_SECONDS, navigationDurationSeconds)
+        val bundle = Bundle().apply {
+            putLong(AnalyticsParams.NAVIGATION_DURATION_SECONDS, navigationDurationSeconds)
         }
+        firebaseAnalytics.logEvent(AnalyticsEvents.NAVIGATION_STOPPED, bundle)
     }
 
     /**
      * Log place search
      */
     fun logPlaceSearched(query: String, resultCount: Int) {
-        firebaseAnalytics.logEvent(AnalyticsEvents.PLACE_SEARCHED) {
-            param(AnalyticsParams.SEARCH_QUERY, query)
-            param("result_count", resultCount.toLong())
+        val bundle = Bundle().apply {
+            putString(AnalyticsParams.SEARCH_QUERY, query)
+            putLong("result_count", resultCount.toLong())
         }
+        firebaseAnalytics.logEvent(AnalyticsEvents.PLACE_SEARCHED, bundle)
     }
 
     /**
      * Log place selection from search results
      */
     fun logPlaceSelected(placeId: String) {
-        firebaseAnalytics.logEvent(AnalyticsEvents.PLACE_SELECTED) {
-            param(AnalyticsParams.PLACE_ID, placeId)
+        val bundle = Bundle().apply {
+            putString(AnalyticsParams.PLACE_ID, placeId)
         }
+        firebaseAnalytics.logEvent(AnalyticsEvents.PLACE_SELECTED, bundle)
     }
 
     /**
@@ -120,20 +126,22 @@ class AnalyticsHelper @Inject constructor(
      * Log route calculation error
      */
     fun logRouteError(errorMessage: String) {
-        firebaseAnalytics.logEvent(AnalyticsEvents.ROUTE_ERROR) {
-            param(AnalyticsParams.ERROR_MESSAGE, errorMessage)
-            param(AnalyticsParams.ERROR_TYPE, "route_calculation")
+        val bundle = Bundle().apply {
+            putString(AnalyticsParams.ERROR_MESSAGE, errorMessage)
+            putString(AnalyticsParams.ERROR_TYPE, "route_calculation")
         }
+        firebaseAnalytics.logEvent(AnalyticsEvents.ROUTE_ERROR, bundle)
     }
 
     /**
      * Log search error
      */
     fun logSearchError(errorMessage: String) {
-        firebaseAnalytics.logEvent(AnalyticsEvents.SEARCH_ERROR) {
-            param(AnalyticsParams.ERROR_MESSAGE, errorMessage)
-            param(AnalyticsParams.ERROR_TYPE, "place_search")
+        val bundle = Bundle().apply {
+            putString(AnalyticsParams.ERROR_MESSAGE, errorMessage)
+            putString(AnalyticsParams.ERROR_TYPE, "place_search")
         }
+        firebaseAnalytics.logEvent(AnalyticsEvents.SEARCH_ERROR, bundle)
     }
 
     /**
@@ -143,4 +151,3 @@ class AnalyticsHelper @Inject constructor(
         firebaseAnalytics.setUserProperty(name, value)
     }
 }
-

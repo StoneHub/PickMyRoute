@@ -4,10 +4,14 @@
 
 ---
 ## 1. Goals
+- Clean up previous implementions of Driving mode/navigation UI. 
+- make a new file for the driving mode phase 1 implementation plan
+- lets try starting with Unit test (see below) 
 - Display live next maneuver instruction + decreasing distance.
 - Advance through steps accurately.
 - Detect off-route condition and show clear visual alert (no reroute request).
-- Keep CPU/memory overhead minimal; no new dependencies.
+- every so often update the distance (throttle to avoid jank), and ETA time
+- investigate what prebuilt tools / ui components are available
 
 ## 2. Non‑Goals (Explicit Deferrals)
 Rerouting, ETA recalculation, lane guidance, speed limits, voice/TTS, background nav, offline caching, persistence across process death.
@@ -220,4 +224,3 @@ Next step: Implement tasks T1–T15; then empirical threshold tuning.
 
 ---
 **Decision Point:** Proceed to implementation (mark T1–T15) or adjust thresholds before coding.
-
