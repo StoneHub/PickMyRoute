@@ -8,8 +8,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
 import com.stonecode.pickmyroute.ui.map.MapState
+import com.stonecode.pickmyroute.domain.model.Route
+import com.stonecode.pickmyroute.domain.model.RouteLeg
 
 @Composable
 fun InstructionBanner(
@@ -57,5 +62,72 @@ private fun formatDistance(meters: Double): String {
         }
         meters < 15 -> "Now"
         else -> "${meters.toInt()} m"
+    }
+}
+
+@Preview(showBackground = true, widthDp = 400)
+@Composable
+private fun InstructionBannerPreview_Normal() {
+    MaterialTheme {
+        InstructionBanner(
+            state = MapState(
+                isNavigating = true,
+                route = Route(
+                    overviewPolyline = "",
+                    legs = emptyList(),
+                    bounds = LatLngBounds(LatLng(0.0, 0.0), LatLng(0.0, 0.0)),
+                    totalDurationSeconds = 720,
+                    totalDistanceMeters = 5200
+                ),
+                distanceToNextManeuverMeters = 250.0,
+                nextInstructionPrimary = "Turn right onto Main Street"
+            ),
+            onStopNavigation = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 400)
+@Composable
+private fun InstructionBannerPreview_CloseToManeuver() {
+    MaterialTheme {
+        InstructionBanner(
+            state = MapState(
+                isNavigating = true,
+                route = Route(
+                    overviewPolyline = "",
+                    legs = emptyList(),
+                    bounds = LatLngBounds(LatLng(0.0, 0.0), LatLng(0.0, 0.0)),
+                    totalDurationSeconds = 720,
+                    totalDistanceMeters = 5200
+                ),
+                distanceToNextManeuverMeters = 12.0,
+                nextInstructionPrimary = "Turn left"
+            ),
+            onStopNavigation = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 400)
+@Composable
+private fun InstructionBannerPreview_OffRoute() {
+    MaterialTheme {
+        InstructionBanner(
+            state = MapState(
+                isNavigating = true,
+                route = Route(
+                    overviewPolyline = "",
+                    legs = emptyList(),
+                    bounds = LatLngBounds(LatLng(0.0, 0.0), LatLng(0.0, 0.0)),
+                    totalDurationSeconds = 720,
+                    totalDistanceMeters = 5200
+                ),
+                isOffRoute = true,
+                offRouteDistanceMeters = 45.0,
+                nextInstructionPrimary = "Recalculating..."
+            ),
+            onStopNavigation = {}
+        )
     }
 }

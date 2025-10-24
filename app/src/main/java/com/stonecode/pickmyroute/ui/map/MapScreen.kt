@@ -70,6 +70,7 @@ fun MapScreen(
     LaunchedEffect(state.waypoints.size) {
         if (state.waypoints.isNotEmpty() && state.waypoints.size > (removedWaypoint?.let { 0 } ?: 0)) {
             Toast.makeText(context, "🛣️ Tap waypoints to remove • Tap map to add more", Toast.LENGTH_SHORT).show()
+
         }
     }
 
@@ -257,7 +258,6 @@ private fun MapContent(
                     state = state,
                     onStopNavigation = { viewModel.onEvent(MapEvent.StopNavigation) }
                 )
-
             }
         }
 

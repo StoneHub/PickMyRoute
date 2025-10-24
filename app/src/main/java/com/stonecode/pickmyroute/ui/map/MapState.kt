@@ -35,7 +35,10 @@ data class MapState(
     val distanceToNextManeuverMeters: Double? = null,
     val nextInstructionPrimary: String? = null,
     val isOffRoute: Boolean = false,
-    val offRouteDistanceMeters: Double? = null
+    val offRouteDistanceMeters: Double? = null,
+
+    // Route planning helper
+    val showRoutePlanningTip: Boolean = false
 )
 
 /**

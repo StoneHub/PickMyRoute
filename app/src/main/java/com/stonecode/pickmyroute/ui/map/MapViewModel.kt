@@ -247,8 +247,8 @@ class MapViewModel @Inject constructor(
 
             try {
                 val route = routingRepository.getRoute(
-                    origin = currentState.currentLocation!!,
-                    destination = currentState.destination!!,
+                    origin = currentState.currentLocation,
+                    destination = currentState.destination,
                     waypoints = currentState.waypoints
                 )
 
@@ -750,5 +750,9 @@ class MapViewModel @Inject constructor(
 
         val cameraUpdate = com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(cameraPosition)
         _state.update { it.copy(cameraAnimationTarget = cameraUpdate) }
+    }
+
+    private fun dismissRoutePlanningTip() {
+        _state.update { it.copy(showRoutePlanningTip = false) }
     }
 }
